@@ -1,0 +1,31 @@
+# Hydra defaults and settings. Ignore these (don't change)
+defaults:
+  - override hydra/job_logging: custom # custom logging 
+  - _self_
+
+hydra:
+  run:
+    dir: ${logs.logdir}/${job.job_now}
+  output_subdir: ${hydra.run.dir}/hydra
+
+pipeline:
+  - scripttemplate
+
+
+general:
+  task: # Leave empty as placeholder
+  workdir: ${hydra:runtime.cwd}  # where the code is executed
+
+pipeline_keys: ${general.workdir}/keys/authorized_keys.yaml
+
+data:
+  datadir: ${general.workdir}/data
+
+logs:
+  logdir: ${general.workdir}/logging
+
+job:
+  job_now_date: &nowdir ${now:%Y-%m-%d}
+  job_now_time: ${now:%H_%M_%S}
+  job_now: ${job.job_now_date}/${job.job_now_time} 
+  jobdir: ${data.datadir}/${job.job_now}
