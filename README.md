@@ -1,2 +1,4 @@
 # Field-AnnotationPipeline
 This repo automates semantic labels and bounding boxes for Field imagery, within the broader Ag Image Repository, focusing on real-world agricultural conditions essential for training deep learning models.
+
+This repository is dedicated to the development of a specialized image processing pipeline, designed exclusively for handling field imagery within the broader Ag Image Repository. It includes detailed metadata related to agricultural environments such as weeds, crops, and cover crops. Our pipeline focuses on automating the creation of semantic labels and bounding box annotations while leveraging extensive environmental metadata to enhance accuracy. Focused solely on images captured directly in agricultural fields, this project provides real-world conditions that are essential for effectively training deep learning models.
