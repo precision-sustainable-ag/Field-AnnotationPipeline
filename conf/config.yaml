@@ -9,8 +9,9 @@ hydra:
   output_subdir: ${hydra.run.dir}/hydra
 
 pipeline:
-  - scripttemplate
-
+  # - scripttemplate
+  - detect_segment_weeds
+  
 
 general:
   task: # Leave empty as placeholder
@@ -20,6 +21,12 @@ pipeline_keys: ${general.workdir}/keys/authorized_keys.yaml
 
 data:
   datadir: ${general.workdir}/data
+  temp_image_dir: ${data.datadir}/images_testing
+  temp_output_dir: ${data.datadir}/images_testing/vit_l_output
+
+  path_yolo_model: ${data.datadir}/models/weed_detection/weights/best.pt
+  sam_checkpoint: ${data.datadir}/models/SAM parmameters/SAM checkpoint/sam_vit_l_0b3195.pth
+  sam_model_type: "vit_l"
 
 logs:
   logdir: ${general.workdir}/logging
