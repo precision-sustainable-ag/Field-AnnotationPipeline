@@ -1,19 +1,23 @@
+import json
 import logging
-import cv2  
-import numpy as np  
-from pathlib import Path 
-from ultralytics import YOLO 
-from segment_anything import sam_model_registry, SamPredictor  
+from pathlib import Path
+
+
+import cv2
+import numpy as np
 from omegaconf import DictConfig
+from segment_anything import SamPredictor, sam_model_registry
+from ultralytics import YOLO
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
+
 class SegmentWeeds:
     """
     A class to handle weed detection and segmentation of images from Field-Image Repository.
-    
+
     Methods:
         __init__(self, cfg: DictConfig): Initializes directories and model paths.
         detect_and_segment(self, image_path): Detects and segments weeds in the given image.
@@ -21,7 +25,7 @@ class SegmentWeeds:
         create_cutout(self, image, mask): Creates a cutout image based on the mask.
         save_image(self, image, bbox, path): Saves the image to the specified path, optionally with a bounding box.
     """
-    
+
     def __init__(self, cfg: DictConfig) -> None:
         """
         Initializes directories and model paths.
@@ -60,7 +64,9 @@ class SegmentWeeds:
             image = cv2.cvtColor(cv2.imread(str(image_path)), cv2.COLOR_BGR2RGB)
 
             # Load the SAM model
-            sam = sam_model_registry[self.sam_model_type](checkpoint=self.sam_checkpoint)
+            sam = sam_model_registry[self.sam_model_type](
+                checkpoint=self.sam_checkpoint
+            )
             predictor = SamPredictor(sam)
 
             # Set the image for the SAM predictor
@@ -110,6 +116,38 @@ class SegmentWeeds:
         ).astype(np.uint8)
         return segmented_image
 
+    @staticmethod
+    def load_species_info(path):
+        logging.debug(f"Loading species info from {path}.")
+        with open(path, "r") as outfile:
+            data = json.load(outfile)
+        return data
+
+    def fix_missmatched_common_names(weedtype):
+        {"Waterhemp": ["common waterhemp", "waterhemp", "waterhemp common"], 
+         "Kochia": ["common kochia", "summer cypress"]}
+
+        # from table     # from species_info.json
+        {"Common kochia": "BASC5"}
+        
+
+    
+    def create_mask(mask, fixed_weedtype):
+        species_info_path = "/home/psa_images/SemiF-AnnotationPipeline/data/semifield-utils/species_information/species_info.json"
+        specie_dict = SegmentWeeds.load_species_info(species_info_path)["species"]
+
+        class_id = specie_dict[fixed_weedtype]
+
+        new_mask = np.where(mask == 1, class_id, 0)
+        return new_mask
+
+
+
+
+
+
+
+
     def create_cutout(self, image, mask):
         """
         Creates a cutout image based on the mask.
@@ -135,10 +173,21 @@ class SegmentWeeds:
             path (Path): The path to save the image.
         """
         if bbox is not None:
-            cv2.rectangle(image, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), (0, 255, 0), 2)
-        cv2.imwrite(str(path), cv2.cvtColor(image, cv2.COLOR_RGB2BGR), [int(cv2.IMWRITE_JPEG_QUALITY), 100])
+            cv2.rectangle(
+                image,
+                (int(bbox[0]), int(bbox[1])),
+                (int(bbox[2]), int(bbox[3])),
+                (0, 255, 0),
+                2,
+            )
+        cv2.imwrite(
+            str(path),
+            cv2.cvtColor(image, cv2.COLOR_RGB2BGR),
+            [int(cv2.IMWRITE_JPEG_QUALITY), 100],
+        )
 
-def main(cfg: DictConfig) -> None:
+
+def main(cgfg: DictConfig) -> None:m
     """
     Main function to start the weed detection and segmentation task.
 
@@ -150,6 +199,6 @@ def main(cfg: DictConfig) -> None:
 
     # Process each image in the directory
     for image_path in segment_weeds.image_dir.iterdir():
-        if image_path.suffix.lower() in {'.jpg', '.jpeg', '.png'}:
+        if image_path.suffix.lower() in {".jpg", ".jpeg", ".png"}:
             segment_weeds.detect_and_segment(image_path)
     log.info(f"{cfg.general.task} completed.")
