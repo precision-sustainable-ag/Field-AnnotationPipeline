@@ -65,6 +65,8 @@ class SegmentWeeds:
         Returns:
             str: The class ID if species is found, None otherwise.
         """
+
+        log.info("Loading image data.")
         image_name = os.path.basename(image_path)
         species_series = self.df[self.df["Name"] == image_name]["Species"]
 
@@ -76,6 +78,7 @@ class SegmentWeeds:
         else:
             log.warning(f"Species data not found for image: {image_name}")
             return None
+        log.info("Loading image data completed.")
 
     def detect_and_segment(self, image_path: str, class_id: str) -> tuple:
         """
@@ -88,6 +91,8 @@ class SegmentWeeds:
         Returns:
             tuple: Cropped mask and cropped image.
         """
+
+        log.info("Starting weed detection and segmentation.")
         try:
             yolo_model = YOLO(self.path_yolo_model)
             results = yolo_model(str(image_path))
@@ -134,6 +139,7 @@ class SegmentWeeds:
 
         except Exception as e:
             log.error(f"Failed to process {image_path}: {e}", exc_info=True)
+        log.info("Completed weed detection and segmentation.")
 
     def get_exif_data(self, image_path: str) -> dict:
         """
@@ -145,6 +151,8 @@ class SegmentWeeds:
         Returns:
             dict: Filtered EXIF data.
         """
+
+        log.info("Extracting EXIF data from the image.")
         image = Image.open(image_path)
         exclude_keys = ["PrintImageMatching", "UserComment", "MakerNote", "ComponentsConfiguration", "SceneType"]
 
@@ -153,6 +161,8 @@ class SegmentWeeds:
             exif_info = image._getexif()
             if exif_info:
                 filtered_exif_data = {TAGS.get(tag, tag): value for tag, value in exif_info.items() if TAGS.get(tag, tag) not in exclude_keys}
+        log.info("Extracting EXIF data from the image completed.")
+        
         return filtered_exif_data
 
     def get_image_metadata(self, filtered_exif_data: dict, image_path: str, class_id: str, cutout_props: dict) -> None:
@@ -165,6 +175,8 @@ class SegmentWeeds:
             class_id (str): Class ID for the detected species.
             cutout_props (dict): Properties of the cutout.
         """
+
+        log.info("Extracting image metadata from tables.")
         image_name = os.path.basename(image_path)
         image_info = self.df[self.df["Name"] == image_name]
 
@@ -172,9 +184,9 @@ class SegmentWeeds:
             raise ValueError(f"Image '{image_name}' not found in the dataframe.")
 
         specific_data_list = [
-            "Name", "UploadDateTimeUTC", "MasterRefID", "ImageIndex", "UsState", "PlantType", "CloudCover",
-            "GroundResidue", "GroundCover", "CoverCropFamily", "GrowthStage", "CottonVariety", "CropOrFallow",
-            "CropTypeSecondary", "Height", "SizeClass", "FlowerFruitOrSeeds", "HasMatchingJpgAndRaw"
+            "Name", "UploadDateTimeUTC", "MasterRefID", "ImageURL", "CameraInfo_DateTime", "SizeMiB", "ImageIndex", "UsState", "PlantType", "CloudCover",
+            "GroundResidue", "GroundCover", "Username", "CoverCropFamily", "GrowthStage", "CottonVariety", "CropOrFallow",
+            "CropTypeSecondary", "Species", "Height", "SizeClass", "FlowerFruitOrSeeds", "BaseName", "Extension", "HasMatchingJpgAndRaw"
         ]
 
         image_info_imp = image_info[specific_data_list].to_dict(orient='list')
@@ -199,6 +211,7 @@ class SegmentWeeds:
         metadata_filename = self.image_metadata_dir / f"{Path(image_path).stem}_metadata.json"
         with open(metadata_filename, "w") as file:
             json.dump(combined_dict, file, indent=4, default=str)
+        log.info("Extracting image metadata from tables completed.")
 
     def cutout_props(self, cutout_image: np.ndarray, cutout_mask_cropped: np.ndarray) -> dict:
         """
@@ -211,8 +224,26 @@ class SegmentWeeds:
         Returns:
             dict: Properties of the cutout.
         """
-        image_gray = cv2.cvtColor(cutout_image, cv2.COLOR_BGR2GRAY)
 
+        log.info("Calculating image properties.")
+        image_gray = cv2.cvtColor(cutout_image, cv2.COLOR_BGR2GRAY)
+        image_hsv = cv2.cvtColor(cutout_image, cv2.COLOR_BGR2HSV)
+
+        # calculate green sum
+        lower_green_hsv = np.array([40, 70, 120])
+        upper_green_hsv = np.array([90, 255, 255])
+        green_hsv_mask = cv2.inRange(image_hsv, lower_green_hsv, upper_green_hsv)
+        green_hsv_mask = np.where(green_hsv_mask == 255, 1, 0)
+        green_sum = int(np.sum(green_hsv_mask))
+    
+        # calculate number of components
+        if len(cutout_mask_cropped.shape) > 2:
+            mask = cutout_mask_cropped[..., 0]
+        else:
+            mask = cutout_mask_cropped
+        _, num_components = measure.label(mask, background=0, connectivity=2, return_num=True)
+        
+        # calculate other cutout properties 
         _, image_binary = cv2.threshold(image_gray, 127, 255, cv2.THRESH_BINARY)
         image_contours, _ = cv2.findContours(image_binary, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
         image_contours_largest = max(image_contours, key=cv2.contourArea)
@@ -225,10 +256,9 @@ class SegmentWeeds:
         hull_area = cv2.contourArea(hull)
         solidity = image_area / hull_area if hull_area > 0 else 0
         perimeter = cv2.arcLength(image_contours_largest, True)
-        green_channel = cutout_image[:, :, 1]
-        green_sum = int(green_channel.sum())
         blur_effect = measure.blur_effect(image_gray)
         (B, G, R) = cv2.split(cutout_image)
+
         mean_B = np.mean(B)
         mean_G = np.mean(G)
         mean_R = np.mean(R)
@@ -247,11 +277,13 @@ class SegmentWeeds:
             "perimeter": perimeter,
             "green_sum": green_sum,
             "blur_effect": blur_effect,
+            "num_components": num_components,
             "cropout_rgb_mean": cropout_rgb_mean,
             "cropout_rgb_std": cropout_rgb_std,
-            "extends_border": extends_border
+            "extends_border": extends_border            
         }
 
+        log.info("Calculating image properties completed.")
         return cutout_props
 
     @staticmethod
