@@ -10,7 +10,8 @@ hydra:
 
 pipeline:
   # - scripttemplate
-  - detect_segment_weeds
+  - detect_weeds
+  # - detect_segment_weeds
   
 
 general:
@@ -34,7 +35,7 @@ data:
   sam_checkpoint: ${data.datadir}/models/SAM parmameters/SAM checkpoint/sam_vit_b_01ec64.pth
   sam_hq_checkpoint: ${data.datadir}/models/SAM parmameters/SAM checkpoint/sam_hq_vit_b.pth
   sam_model_type: "vit_b"
-  merged_tables: ${data.datadir}/processed_tables/merged_blobs_tables_metadata.csv
+  merged_tables_permanent: ${data.datadir}/persistent_tables/merged_blobs_tables_metadata_permanent.csv
   image_metadata_dir: ${data.datadir}/metadata
 
 logs:
