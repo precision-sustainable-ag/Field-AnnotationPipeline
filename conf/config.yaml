@@ -24,17 +24,16 @@ data:
   # temp_image_dir: ${data.datadir}/images_testing/test_images
   temp_image_dir: ${data.datadir}/images_testing/subset/input
   # temp_output_dir: ${data.datadir}/images_testing/test_images_output
-  temp_output_dir: ${data.datadir}/images_testing/subset/output
+  temp_output_dir: ${data.datadir}/images_testing/subset/output/output_sam_hq
   species_info: ${data.datadir}/field-utils/species_info.json
   field_species_info: ${data.datadir}/field-utils/field_species.json
 
-
   specific_data: ${data.datadir}/field-utils/specific_data.json #need a better name
 
-
   path_yolo_model: ${data.datadir}/models/weed_detection/weights/best.pt
-  sam_checkpoint: ${data.datadir}/models/SAM parmameters/SAM checkpoint/sam_vit_l_0b3195.pth
-  sam_model_type: "vit_l"
+  sam_checkpoint: ${data.datadir}/models/SAM parmameters/SAM checkpoint/sam_vit_b_01ec64.pth
+  sam_hq_checkpoint: ${data.datadir}/models/SAM parmameters/SAM checkpoint/sam_hq_vit_b.pth
+  sam_model_type: "vit_b"
   merged_tables: ${data.datadir}/processed_tables/merged_blobs_tables_metadata.csv
   image_metadata_dir: ${data.datadir}/metadata
 
