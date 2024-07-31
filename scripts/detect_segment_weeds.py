@@ -181,12 +181,12 @@ class SegmentWeeds:
             sam = sam_model_registry[self.sam_model_type](checkpoint=self.sam_hq_checkpoint)
             sam.to(device=device)
             predictor = SamPredictor(sam)
-            predictor.set_image(padded_image)
+            predictor.set_image(image)
 
             masks, _, _ = predictor.predict(
                 point_coords=None,
                 point_labels=None,
-                box=input_box[None, :],
+                box=input_box_og[None, :],
                 multimask_output=False,
             )
 
@@ -195,13 +195,14 @@ class SegmentWeeds:
                 return None
 
             cutout_mask = (masks[0] > 0.5).astype(np.uint8) 
-            #cutout_mask_cropped = cutout_mask[y_min: y_max, x_min: x_max]
+            cutout_mask_cropped = cutout_mask[y_min: y_max, x_min: x_max]
             cutout_mask_cropped = cutout_mask[new_y_min: new_y_max, new_x_min: new_x_max]
             new_mask = cutout_mask_cropped.copy()
             new_mask[new_mask == 1] = class_id
             # new_mask[new_mask == 1] = 255
 
-            cutout_image = cv2.bitwise_and(cropout_image, cropout_image, mask=new_mask)
+            # cutout_image = cv2.bitwise_and(cropout_image, cropout_image, mask=new_mask)
+            cutout_image = cv2.bitwise_and(image, image, mask=cutout_mask)
             cutout_image = cv2.cvtColor(cutout_image, cv2.COLOR_BGR2RGB)
             cutout_image_path = self.output_dir / f"{image_path.stem}_cutout.png"
             cv2.imwrite(str(cutout_image_path), cutout_image)
