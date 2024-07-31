@@ -10,7 +10,8 @@ hydra:
 
 pipeline:
   # - scripttemplate
-  - detect_weeds
+  # - detect_weeds
+  - segment_weeds
   # - detect_segment_weeds
   
 
@@ -46,4 +47,6 @@ job:
   job_now_time: ${now:%H_%M_%S}
   job_now: ${job.job_now_date}/${job.job_now_time} 
   jobdir: ${data.datadir}/${job.job_now}
+
+
 

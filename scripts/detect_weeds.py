@@ -121,7 +121,7 @@ class MetadataExtractor:
             csv_path (str): Path to the CSV file containing metadata.
             field_species_info_path (str): Path to the field species info JSON file.
         """
-        self.csv_path=cfg.data.merged_tables_permanent, 
+        self.csv_path=cfg.data.merged_tables_permanent
         self.field_species_info_path=cfg.data.field_species_info
 
         self.metadata_dir = Path(cfg.data.image_metadata_dir)
@@ -289,6 +289,7 @@ class ProcessDetections:
 
             detection_results = self.weed_detector.detect_weeds(image)
             detection_results["image_id"] = Path(image_path).stem
+            detection_results["class_id"] = class_id
             if detection_results is None:
                 return
 
