@@ -5,7 +5,7 @@ import os
 from PIL import Image
 from PIL.ExifTags import TAGS
 from pathlib import Path
-from utils.utils import add_padding_to_cropout, shifting_bbox_coordinates
+from utils.utils import add_padding_to_cropout
 
 import cv2
 import math
@@ -49,7 +49,7 @@ class SegmentWeeds:
         self.sam_hq_checkpoint = cfg.data.sam_hq_checkpoint
         self.sam_model_type = cfg.data.sam_model_type
 
-        self.csv_path = cfg.data.merged_tables
+        self.csv_path = cfg.data.merged_tables_permanent
         self.df = pd.read_csv(self.csv_path, low_memory=False)
 
         with open(cfg.data.field_species_info, "r") as file:

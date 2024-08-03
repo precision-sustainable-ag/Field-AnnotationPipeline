@@ -9,10 +9,9 @@ hydra:
   output_subdir: ${hydra.run.dir}/hydra
 
 pipeline:
-  # - scripttemplate
-  # - detect_weeds
+  - detect_weeds
   - segment_weeds
-  # - detect_segment_weeds
+  # - detect_segment_weeds # og script
   
 
 general:
@@ -34,8 +33,8 @@ data:
 
   path_yolo_model: ${data.datadir}/models/weed_detection/weights/best.pt
   sam_checkpoint: ${data.datadir}/models/SAM parmameters/SAM checkpoint/sam_vit_b_01ec64.pth
-  sam_hq_checkpoint: ${data.datadir}/models/SAM parmameters/SAM checkpoint/sam_hq_vit_b.pth
-  sam_model_type: "vit_b"
+  sam_hq_checkpoint: ${data.datadir}/models/SAM parmameters/SAM checkpoint/sam_hq_vit_h.pth
+  sam_model_type: "vit_h"
   merged_tables_permanent: ${data.datadir}/persistent_tables/merged_blobs_tables_metadata_permanent.csv
   image_metadata_dir: ${data.datadir}/metadata
 

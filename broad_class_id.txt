@@ -1,0 +1,16 @@
+Broad clas_id:
+1.	Palmer:1
+2.	Sicklepod:3
+3.	Cocklebur:4
+4.	Waterhemp:9
+5.	Sunflower:14
+6.	Jonsongrass:16
+7.	Smooth pigweed:18
+8.	Cmmon lambsqarters 19
+9.	Jimson weed: 21
+10.	Velvetleaf: 22
+11.	Horseweed:25
+12.	Prickly sida:43
+13.	Pitted morning glory: 44
+14.	Spiny amaranth: 45
+15.	Desert horsepurslane: 46
