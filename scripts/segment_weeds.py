@@ -70,28 +70,17 @@ class SingleImageProcessor:
             log.info(f"Saving masks ({Path(image_path).stem}) to {self.visualization_label_dir.parent}")
             self.save_compressed_image(masked_image, self.visualization_label_dir / mask_name) # masked image saved in visualization_label_dir
             cv2.imwrite(str(self.output_dir / mask_name), class_masked_image.astype(np.uint8), [cv2.IMWRITE_PNG_COMPRESSION, 1]) # class_masked_image saved in output_dir
-
-            class_masked_image_3d = np.repeat(class_masked_image[:, :, np.newaxis], 3, axis=2).astype(np.uint8)
+            class_masked_image_3d = np.repeat(class_masked_image[:, :, np.newaxis], 3, axis=2).astype(np.uint8) # convert the mask to 3d
 
             # Save the final cutout:
-            log.info("Saving mask cutout")
             mask_cutout_name = Path(image_path).stem + '_cutout.png'
             mask_cutout_bgr = np.where(class_masked_image_3d != 255, image, 0)
-
-            # # Convert cleaned mask to HSV and remove gray color
-            # hsv_gray = [0, 0, 120] 
-            # tolerance_h = 20
-            # tolerance_s = 30
-            # tolerance_v = 60
-
             mask_cutout_hsv = cv2.cvtColor(mask_cutout_bgr, cv2.COLOR_BGR2HSV)
-
             mask_gray_removed = self.remove_gray_hsv_color(mask_cutout_hsv)
-
             mask_cutout_bgr = cv2.bitwise_and(mask_cutout_bgr, mask_cutout_bgr, mask=mask_gray_removed)
-            # mask_cutout_no_gray = self.remove_gray_hsv_color(mask_cutout_hsv, hsv_gray, tolerance_h, tolerance_s, tolerance_v) # gray color removed
-
             final_mask_cutout = cv2.cvtColor(mask_cutout_bgr, cv2.COLOR_BGR2RGB)
+
+            log.info("Saving mask cutout")
             cv2.imwrite(str(self.output_dir / mask_cutout_name), final_mask_cutout.astype(np.uint8), [cv2.IMWRITE_PNG_COMPRESSION, 1])  # mask_cutout saved in output_dir
 
         except Exception as e:
