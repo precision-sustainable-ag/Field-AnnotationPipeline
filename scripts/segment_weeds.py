@@ -25,7 +25,7 @@ log = logging.getLogger(__name__)
 device = "cuda"
 
 class SingleImageProcessor:
-    def __init__(self, output_dir: str, metadata_dir: str, model_type: str, sam_checkpoint: str):
+    def __init__(self, cfg: DictConfig, output_dir: str, metadata_dir: str, model_type: str, sam_checkpoint: str):
         """
         Initializes the SingleImageProcessor with image and JSON paths, and model details.
         """
@@ -33,6 +33,8 @@ class SingleImageProcessor:
         self.metadata_dir = Path(metadata_dir)
         self.output_dir = Path(output_dir)
         self.visualization_label_dir = self.output_dir / "vis_masks" # before _clean_mask???????? 
+        self.broad_sprase_morph_species = json.load(open(Path(cfg.data.broad_sprase_morph_species)))
+
 
         for output_dir in [self.output_dir, self.visualization_label_dir]:
             output_dir.mkdir(exist_ok=True, parents=True)
@@ -252,14 +254,10 @@ class SingleImageProcessor:
         # Apply the mask to the image
         cutout = np.where(mask_3d == 1, cropped_image_area, 0)
 
-        # Apply different masks based on different morphology
-        # sparse_morphology = [2, 5, 7, 8, 19, 11, 12, 15, 20, 23, 24, 42] # only ragweed. incluse grasses.
-        # broad_morphology = [1, 3, 4, 9, 14, 16, 18, 21, 22, 25, 43, 44, 45, 46] #test and see what works
-
-        # if class_id in sparse_morphology:
+        # Apply different post processing methods for broad and sparse morphology
         if class_id in [item["class_id"] for item in self.broad_sprase_morph_species['sparse_morphology']]:
             # Apply exg (this is good for ragweed parthenium but not for cocklebur)
-            log.info(f"Working with sparse morphology\nclass_id:{class_id}")
+            log.info(f"Working with sparse morphology, class_id:{class_id}")
             exg_image = self.make_exg(cutout)
             exg_mask = np.where(exg_image > 0, 1, 0).astype(np.uint8)
             # Apply morphological closing and opening
@@ -273,7 +271,7 @@ class SingleImageProcessor:
             cleaned_mask = cv2.morphologyEx(cleaned_mask, cv2.MORPH_OPEN, kernel)
             
         elif class_id in [item["class_id"] for item in self.broad_sprase_morph_species['broad_morphology']]:
-            log.info(f"Working with broad morphology\nclass_id:{class_id}")
+            log.info(f"Working with broad morphology, class_id:{class_id}")
             # Apply morphological closing and opening
             cutout_gray = cv2.cvtColor(cutout, cv2.COLOR_RGB2GRAY)
 
@@ -326,8 +324,6 @@ class DirectoryInitializer:
         self.metadata_dir = Path(cfg.data.image_metadata_dir)
         self.output_dir = Path(cfg.data.temp_output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
-        self.broad_sprase_morph_species = json.load(open(Path(cfg.data.broad_sprase_morph_species)))
-
 
     def get_images(self) -> List[Path]:
         """
@@ -370,6 +366,7 @@ def main(cfg: DictConfig) -> None:
     metadata_dir = directory_initializer.metadata_dir
 
     processor = SingleImageProcessor(
+        cfg=cfg,
         output_dir=output_dir,
         metadata_dir=metadata_dir,
         model_type=cfg.data.sam_model_type,

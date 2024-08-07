@@ -119,18 +119,22 @@ class MetadataExtractor:
 
         Parameters:
             csv_path (str): Path to the CSV file containing metadata.
-            field_species_info_path (str): Path to the field species info JSON file.
+            field_species_name_path (str): Path to the field species info JSON file.
         """
-        self.csv_path=cfg.data.merged_tables_permanent
-        self.field_species_info_path=cfg.data.field_species_info
+        self.csv_path = cfg.data.merged_tables_permanent
+        self.field_species_name_path = cfg.data.field_species_name
+        self.species_info_path = cfg.data.species_info
 
         self.metadata_dir = Path(cfg.data.image_metadata_dir)
         
         self.df = pd.read_csv(self.csv_path, low_memory=False)
         assert not self.df.empty, "Merged data tables CSV is empty."
 
-        with open(self.field_species_info_path, "r") as file:
-            self.field_species_info = json.load(file)
+        with open(self.field_species_name_path, "r") as file:
+            self.field_species_name = json.load(file)
+
+        with open(self.species_info_path, "r") as file:
+            self.species_info = json.load(file)
 
     def get_class_id(self, image_name: str) -> Optional[str]:
         """
@@ -143,7 +147,7 @@ class MetadataExtractor:
             return None
 
         species_list = [str(species).lower() for species in species_series]
-        result = [item for item in self.field_species_info if item.get("common_name", "").lower() in species_list]
+        result = [item for item in self.field_species_name if item.get("common_name", "").lower() in species_list]
         
         return result[0]["class_id"] if result else None
 
@@ -178,7 +182,18 @@ class MetadataExtractor:
             output_dir (Path): Directory to save the metadata JSON.
         """
         try:
-            log.info("Extracting image metadata from tables.")
+            log.info("Extracting metadata")
+            print(f"Detction class id: {detection_results['class_id']}")
+            print(f"Species class id: {self.species_info['species']['background']['class_id']}")
+
+            # save detailed species info in "category" of metadata
+            category = {}
+            for species_key, species_value in self.species_info['species'].items():
+                    if detection_results['class_id'] == species_value['class_id']:
+                        category[species_key] = species_value
+                        break
+
+            # save detailed image info in "image_info" of metadata
             image_name = Path(image_path).name
             image_info = self.df[self.df["Name"] == image_name]
 
@@ -191,7 +206,6 @@ class MetadataExtractor:
                 "CropTypeSecondary", "Species", "Height", "SizeClass", "FlowerFruitOrSeeds", "BaseName", "Extension", "HasMatchingJpgAndRaw"
             ]
 
-        
             image_info_imp = image_info[specific_data_list].to_dict(orient='list')
             image_info_imp_dict = {key: value[0] if value else None for key, value in image_info_imp.items()}
 
@@ -200,18 +214,21 @@ class MetadataExtractor:
 
             combined_dict = {
                 "detection_results": detection_results,
+                "category": category,
                 "image_info": image_info_imp_dict,
                 "exif_info": exif_data
             }
 
             metadata_filename = self.metadata_dir / f"{Path(image_path).stem}.json"
+            self.metadata_dir.mkdir(exist_ok=True, parents=True)
+
             with open(metadata_filename, "w") as file:
                 json.dump(combined_dict, file, indent=4, default=str)
             
             log.info(f"Metadata saved to {metadata_filename}.")
-        
+            
         except Exception as e:
-            log.error(f"Failed to extract image metadata for {image_path}: {e}", exc_info=True)
+            log.error(f"Failed to extract metadata for {image_path}: {e}", exc_info=True)
 
     @staticmethod
     def _custom_decoder(data: dict) -> dict:
