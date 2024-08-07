@@ -22,10 +22,8 @@ pipeline_keys: ${general.workdir}/keys/authorized_keys.yaml
 
 data:
   datadir: ${general.workdir}/data
-  # temp_image_dir: ${data.datadir}/images_testing/test_images
-  temp_image_dir: ${data.datadir}/images_testing/subset/input
-  # temp_output_dir: ${data.datadir}/images_testing/test_images_output
-  temp_output_dir: ${data.datadir}/images_testing/subset/output/output_sam_hq
+  temp_image_dir: ${data.datadir}/images_testing/test_images/input
+  temp_output_dir: ${data.datadir}/images_testing/test_images/output
   species_info: ${data.datadir}/field-utils/species_info.json
   field_species_info: ${data.datadir}/field-utils/field_species.json
 
