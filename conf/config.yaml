@@ -26,6 +26,7 @@ data:
   temp_output_dir: ${data.datadir}/images_testing/test_images/output
   species_info: ${data.datadir}/field-utils/species_info.json
   field_species_info: ${data.datadir}/field-utils/field_species.json
+  broad_sprase_morph_species: ${data.datadir}/field-utils/broad_sprase_morph_species.json
 
   specific_data: ${data.datadir}/field-utils/specific_data.json #need a better name
 
