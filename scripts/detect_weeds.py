@@ -183,9 +183,6 @@ class MetadataExtractor:
         """
         try:
             log.info("Extracting metadata")
-            print(f"Detction class id: {detection_results['class_id']}")
-            print(f"Species class id: {self.species_info['species']['background']['class_id']}")
-
             # save detailed species info in "category" of metadata
             category = {}
             for species_key, species_value in self.species_info['species'].items():

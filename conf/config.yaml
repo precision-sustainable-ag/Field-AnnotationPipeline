@@ -10,7 +10,7 @@ hydra:
 
 pipeline:
   - detect_weeds
-  # - segment_weeds
+  - segment_weeds
   # - detect_segment_weeds # og script
   
 
