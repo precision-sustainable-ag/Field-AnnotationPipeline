@@ -242,7 +242,6 @@ class SingleImageProcessor:
 
 
     def _clean_mask(self, mask: np.ndarray, cropped_image_area: np.ndarray, image_id: str, class_id: str) -> np.ndarray:
-        # TODO: adjust this for different species
         """
         Applies morphological opening and closing operations to clean up the mask,
         removes large non-green components.
@@ -254,12 +253,13 @@ class SingleImageProcessor:
         cutout = np.where(mask_3d == 1, cropped_image_area, 0)
 
         # Apply different masks based on different morphology
-        sparse_morphology = [2, 5,6, 7, 8, 19, 11, 12, 15, 20, 23, 24, 42] # only ragweed. incluse grasses.
-        broad_morphology = [1, 3, 4, 9, 14, 16, 18, 21, 22, 25, 43, 44, 45, 46] #test and see what works
+        # sparse_morphology = [2, 5, 7, 8, 19, 11, 12, 15, 20, 23, 24, 42] # only ragweed. incluse grasses.
+        # broad_morphology = [1, 3, 4, 9, 14, 16, 18, 21, 22, 25, 43, 44, 45, 46] #test and see what works
 
-        if class_id in sparse_morphology:
+        # if class_id in sparse_morphology:
+        if class_id in [item["class_id"] for item in self.broad_sprase_morph_species['sparse_morphology']]:
             # Apply exg (this is good for ragweed parthenium but not for cocklebur)
-            log.info("Working with sparse morphology")
+            log.info(f"Working with sparse morphology\nclass_id:{class_id}")
             exg_image = self.make_exg(cutout)
             exg_mask = np.where(exg_image > 0, 1, 0).astype(np.uint8)
             # Apply morphological closing and opening
@@ -272,21 +272,8 @@ class SingleImageProcessor:
             cleaned_mask = cv2.morphologyEx(cleaned_mask, cv2.MORPH_CLOSE, kernel)
             cleaned_mask = cv2.morphologyEx(cleaned_mask, cv2.MORPH_OPEN, kernel)
             
-            # blurred_mask = cv2.GaussianBlur(cleaned_mask.astype(np.uint8), gaussian_blur_size, 0) # guassian blur to smooth edges
-            # _, cleaned_mask = cv2.threshold(blurred_mask, 127, 255, cv2.THRESH_BINARY) # convert blurred mask back to a binary mask by thresholding
-
-            # Apply the mask to the image
-            # mask_3d = np.repeat(cleaned_mask[:, :, np.newaxis], 3, axis=2)
-            # exged_cutout = np.where(mask_3d > 0, cutout, 0)
-            # temp_image_dir = f"data/images_testing/temp_exged_cutout_cleaned/"
-            # Path(temp_image_dir).mkdir(exist_ok=True, parents=True)
-            # temp_image_path = str(Path(temp_image_dir, f"{image_id}.png"))
-            
-            # bgr_result = cv2.cvtColor(exged_cutout, cv2.COLOR_RGB2BGR)
-            # cv2.imwrite(temp_image_path ,bgr_result)
-            
-        elif class_id in broad_morphology:
-            log.info("Working with broad morphology")
+        elif class_id in [item["class_id"] for item in self.broad_sprase_morph_species['broad_morphology']]:
+            log.info(f"Working with broad morphology\nclass_id:{class_id}")
             # Apply morphological closing and opening
             cutout_gray = cv2.cvtColor(cutout, cv2.COLOR_RGB2GRAY)
 
@@ -299,32 +286,9 @@ class SingleImageProcessor:
 
             cleaned_mask = cv2.morphologyEx(cleaned_mask, cv2.MORPH_CLOSE, kernel)
             cleaned_mask = cv2.morphologyEx(cleaned_mask, cv2.MORPH_OPEN, kernel)
-            # blurred_mask = cv2.GaussianBlur(cleaned_mask.astype(np.uint8), gaussian_blur_size, 0) # guassian blur to smooth edges
-            # _, cleaned_mask = cv2.threshold(blurred_mask, 127, 255, cv2.THRESH_BINARY) # convert blurred mask back to a binary mask by thresholding
-
-
-        # Apply the mask to the image
-        # mask_3d = np.repeat(cleaned_mask[:, :, np.newaxis], 3, axis=2)
-        # exged_cutout = np.where(mask_3d > 0, cutout, 0)
-        # temp_image_dir = f"data/images_testing/temp_exged_cutout_cleaned/"
-        # Path(temp_image_dir).mkdir(exist_ok=True, parents=True)
-        # temp_image_path = str(Path(temp_image_dir, f"{image_id}.png"))
-        
-        # bgr_result = cv2.cvtColor(exged_cutout, cv2.COLOR_RGB2BGR)
-        # cv2.imwrite(temp_image_path ,bgr_result)
 
         else:
-            log.info("Working with unknown morphology")
-            # Apply morphological closing and opening
-            cutout_gray = cv2.cvtColor(cutout, cv2.COLOR_RGB2GRAY)
-            cleaned_mask = cv2.GaussianBlur(cutout_gray, (7, 7), sigmaX=1)
-            kernel = np.ones((3, 3), np.uint8)  # Default kernel size, assuming 5x5
-
-            cleaned_mask = remove_small_holes(cleaned_mask.astype(bool), area_threshold=10).astype(np.uint8)
-            cleaned_mask = cv2.morphologyEx(cleaned_mask, cv2.MORPH_CLOSE, kernel)
-            cleaned_mask = cv2.morphologyEx(cleaned_mask, cv2.MORPH_OPEN, kernel)
-            # blurred_mask = cv2.GaussianBlur(cleaned_mask.astype(np.uint8), gaussian_blur_size, 0) # guassian blur to smooth edges
-            # _, cleaned_mask = cv2.threshold(blurred_mask, 127, 255, cv2.THRESH_BINARY) # convert blurred mask back to a binary mask by thresholding
+            log.error(f"class_id:{class_id} not defined in broad_sprase_morph_species")
 
         return cleaned_mask
         
@@ -362,6 +326,8 @@ class DirectoryInitializer:
         self.metadata_dir = Path(cfg.data.image_metadata_dir)
         self.output_dir = Path(cfg.data.temp_output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
+        self.broad_sprase_morph_species = json.load(open(Path(cfg.data.broad_sprase_morph_species)))
+
 
     def get_images(self) -> List[Path]:
         """
