@@ -14,7 +14,7 @@ import torch
 import torch.multiprocessing as mp
 from omegaconf import DictConfig
 from skimage.measure import regionprops
-from skimage.morphology import remove_small_holes, label
+from skimage.morphology import remove_small_holes, label, remove_small_objects
 from skimage.morphology import disk, dilation, erosion
 from skimage.filters import gaussian
 from segment_anything_hq import sam_model_registry, SamPredictor
@@ -47,9 +47,9 @@ class SingleImageProcessor:
         Processes a single image and its corresponding annotations from JSON.
         """
         image_path, json_path = input_paths
-        try:
-            log.info(f"Processing image: {image_path}")
+        log.info(f"Processing image: {image_path}")
 
+        if Path(json_path).exists():
             with open(json_path, 'r') as f:
                 data = json.load(f)
 
@@ -66,14 +66,21 @@ class SingleImageProcessor:
             image = self._read_image(image_path)
             masked_image, class_masked_image = self._create_masks(image, bbox)
 
+            class_id = data['detection_results']["class_id"]
+
+            save_class_dir = Path(self.output_dir, f"{class_id}")
+            save_class_dir.mkdir(exist_ok=True, parents=True)
+
             mask_name = Path(image_path).stem + '.png'
             log.info(f"Saving masks ({Path(image_path).stem}) to {self.visualization_label_dir.parent}")
             self.save_compressed_image(masked_image, self.visualization_label_dir / mask_name) # masked image saved in visualization_label_dir
-            cv2.imwrite(str(self.output_dir / mask_name), class_masked_image.astype(np.uint8), [cv2.IMWRITE_PNG_COMPRESSION, 1]) # class_masked_image saved in output_dir
+            cv2.imwrite(str(save_class_dir / mask_name), class_masked_image.astype(np.uint8), [cv2.IMWRITE_PNG_COMPRESSION, 1]) # class_masked_image saved in output_dir
             class_masked_image_3d = np.repeat(class_masked_image[:, :, np.newaxis], 3, axis=2).astype(np.uint8) # convert the mask to 3d
 
             # Save the final cutout:
             mask_cutout_name = Path(image_path).stem + '_cutout.png'
+            
+            class_masked_image_3d = np.repeat(class_masked_image[:, :, np.newaxis], 3, axis=2).astype(np.uint8) # convert the mask to 3d
             mask_cutout_bgr = np.where(class_masked_image_3d != 255, image, 0)
             mask_cutout_hsv = cv2.cvtColor(mask_cutout_bgr, cv2.COLOR_BGR2HSV)
             mask_gray_removed = self.remove_gray_hsv_color(mask_cutout_hsv)
@@ -81,10 +88,11 @@ class SingleImageProcessor:
             final_mask_cutout = cv2.cvtColor(mask_cutout_bgr, cv2.COLOR_BGR2RGB)
 
             log.info("Saving mask cutout")
-            cv2.imwrite(str(self.output_dir / mask_cutout_name), final_mask_cutout.astype(np.uint8), [cv2.IMWRITE_PNG_COMPRESSION, 1])  # mask_cutout saved in output_dir
-
-        except Exception as e:
-            log.error(f"An error occurred while processing {image_path}: {e}")
+            cv2.imwrite(str(save_class_dir / mask_cutout_name), final_mask_cutout.astype(np.uint8), [cv2.IMWRITE_PNG_COMPRESSION, 1])  # mask_cutout saved in output_dir
+        else:
+            log.error(f"No JSON file for {json_path}")
+            return None
+        
 
     def save_compressed_image(self, image: np.ndarray, path: str, quality: int = 98):
         """
@@ -246,7 +254,7 @@ class SingleImageProcessor:
         cutout = np.where(mask_3d == 1, cropped_image_area, 0)
 
         # Apply different masks based on different morphology
-        sparse_morphology = [2, 5, 7, 8, 19, 11, 12, 15, 20, 23, 24, 42] # only ragweed. incluse grasses.
+        sparse_morphology = [2, 5,6, 7, 8, 19, 11, 12, 15, 20, 23, 24, 42] # only ragweed. incluse grasses.
         broad_morphology = [1, 3, 4, 9, 14, 16, 18, 21, 22, 25, 43, 44, 45, 46] #test and see what works
 
         if class_id in sparse_morphology:
@@ -255,10 +263,14 @@ class SingleImageProcessor:
             exg_image = self.make_exg(cutout)
             exg_mask = np.where(exg_image > 0, 1, 0).astype(np.uint8)
             # Apply morphological closing and opening
-            cleaned_mask = cv2.GaussianBlur(exg_mask, (7, 7), sigmaX=1)
+            cleaned_mask = remove_small_holes(exg_mask.astype(bool), area_threshold=100, connectivity=2).astype(np.uint8)
+            cleaned_mask = remove_small_objects(cleaned_mask.astype(bool), min_size=100, connectivity=2).astype(np.uint8)
+
+            cleaned_mask = cv2.GaussianBlur(cleaned_mask, (7, 7), sigmaX=1)
             kernel = np.ones((3, 3), np.uint8)  # Default kernel size, assuming 5x5
             cleaned_mask = cv2.morphologyEx(cleaned_mask, cv2.MORPH_CLOSE, kernel)
             cleaned_mask = cv2.morphologyEx(cleaned_mask, cv2.MORPH_OPEN, kernel)
+            
             cleaned_mask = remove_small_holes(cleaned_mask.astype(bool), area_threshold=10).astype(np.uint8)
             # blurred_mask = cv2.GaussianBlur(cleaned_mask.astype(np.uint8), gaussian_blur_size, 0) # guassian blur to smooth edges
             # _, cleaned_mask = cv2.threshold(blurred_mask, 127, 255, cv2.THRESH_BINARY) # convert blurred mask back to a binary mask by thresholding
@@ -276,12 +288,13 @@ class SingleImageProcessor:
         elif class_id in broad_morphology:
             log.info("Working with broad morphology")
             # Apply morphological closing and opening
-            cutout_gray = cv2.cvtColor(cutout, cv2.COLOR_RGB2GRAY)
-            cleaned_mask = cv2.GaussianBlur(cutout_gray, (7, 7), sigmaX=1)
-            kernel = np.ones((3, 3), np.uint8)  # Default kernel size, assuming 5x5
-            cleaned_mask = cv2.morphologyEx(cleaned_mask, cv2.MORPH_CLOSE, kernel)
-            #cleaned_mask = cv2.morphologyEx(cleaned_mask, cv2.MORPH_OPEN, kernel)
-            cleaned_mask = remove_small_holes(cleaned_mask.astype(bool), area_threshold=10).astype(np.uint8)
+            cutout_gray = cv2.cvtColor(cutout, cv2.COLOR_RGB2GRAY).astype(np.uint8)
+            cleaned_mask = remove_small_holes(cutout_gray.astype(bool), area_threshold=1).astype(np.uint8)
+            # cleaned_mask = cv2.GaussianBlur(cleaned_mask, (7, 7), sigmaX=1)
+            # kernel = np.ones((5, 5), np.uint8)  # Default kernel size, assuming     5x5
+            # cleaned_mask = cv2.morphologyEx(cleaned_mask, cv2.MORPH_CLOSE, kernel)
+            # cleaned_mask = cv2.morphologyEx(cleaned_mask, cv2.MORPH_OPEN, kernel)
+            
             # blurred_mask = cv2.GaussianBlur(cleaned_mask.astype(np.uint8), gaussian_blur_size, 0) # guassian blur to smooth edges
             # _, cleaned_mask = cv2.threshold(blurred_mask, 127, 255, cv2.THRESH_BINARY) # convert blurred mask back to a binary mask by thresholding
 
