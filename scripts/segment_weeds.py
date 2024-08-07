@@ -268,10 +268,10 @@ class SingleImageProcessor:
 
             cleaned_mask = cv2.GaussianBlur(cleaned_mask, (7, 7), sigmaX=1)
             kernel = np.ones((3, 3), np.uint8)  # Default kernel size, assuming 5x5
+
             cleaned_mask = cv2.morphologyEx(cleaned_mask, cv2.MORPH_CLOSE, kernel)
             cleaned_mask = cv2.morphologyEx(cleaned_mask, cv2.MORPH_OPEN, kernel)
             
-            cleaned_mask = remove_small_holes(cleaned_mask.astype(bool), area_threshold=10).astype(np.uint8)
             # blurred_mask = cv2.GaussianBlur(cleaned_mask.astype(np.uint8), gaussian_blur_size, 0) # guassian blur to smooth edges
             # _, cleaned_mask = cv2.threshold(blurred_mask, 127, 255, cv2.THRESH_BINARY) # convert blurred mask back to a binary mask by thresholding
 
@@ -288,13 +288,17 @@ class SingleImageProcessor:
         elif class_id in broad_morphology:
             log.info("Working with broad morphology")
             # Apply morphological closing and opening
-            cutout_gray = cv2.cvtColor(cutout, cv2.COLOR_RGB2GRAY).astype(np.uint8)
-            cleaned_mask = remove_small_holes(cutout_gray.astype(bool), area_threshold=1).astype(np.uint8)
-            # cleaned_mask = cv2.GaussianBlur(cleaned_mask, (7, 7), sigmaX=1)
-            # kernel = np.ones((5, 5), np.uint8)  # Default kernel size, assuming     5x5
-            # cleaned_mask = cv2.morphologyEx(cleaned_mask, cv2.MORPH_CLOSE, kernel)
-            # cleaned_mask = cv2.morphologyEx(cleaned_mask, cv2.MORPH_OPEN, kernel)
-            
+            cutout_gray = cv2.cvtColor(cutout, cv2.COLOR_RGB2GRAY)
+
+            cleaned_mask = remove_small_holes(cutout_gray.astype(bool), area_threshold=10).astype(np.uint8)
+            cleaned_mask = remove_small_objects(cleaned_mask.astype(bool), min_size=100, connectivity=2).astype(np.uint8)
+
+            cleaned_mask = cv2.GaussianBlur(cleaned_mask, (7, 7), sigmaX=1)
+            kernel = np.ones((3, 3), np.uint8)  # Default kernel size, assuming 5x5
+
+
+            cleaned_mask = cv2.morphologyEx(cleaned_mask, cv2.MORPH_CLOSE, kernel)
+            cleaned_mask = cv2.morphologyEx(cleaned_mask, cv2.MORPH_OPEN, kernel)
             # blurred_mask = cv2.GaussianBlur(cleaned_mask.astype(np.uint8), gaussian_blur_size, 0) # guassian blur to smooth edges
             # _, cleaned_mask = cv2.threshold(blurred_mask, 127, 255, cv2.THRESH_BINARY) # convert blurred mask back to a binary mask by thresholding
 
@@ -315,9 +319,10 @@ class SingleImageProcessor:
             cutout_gray = cv2.cvtColor(cutout, cv2.COLOR_RGB2GRAY)
             cleaned_mask = cv2.GaussianBlur(cutout_gray, (7, 7), sigmaX=1)
             kernel = np.ones((3, 3), np.uint8)  # Default kernel size, assuming 5x5
+
+            cleaned_mask = remove_small_holes(cleaned_mask.astype(bool), area_threshold=10).astype(np.uint8)
             cleaned_mask = cv2.morphologyEx(cleaned_mask, cv2.MORPH_CLOSE, kernel)
             cleaned_mask = cv2.morphologyEx(cleaned_mask, cv2.MORPH_OPEN, kernel)
-            cleaned_mask = remove_small_holes(cleaned_mask.astype(bool), area_threshold=10).astype(np.uint8)
             # blurred_mask = cv2.GaussianBlur(cleaned_mask.astype(np.uint8), gaussian_blur_size, 0) # guassian blur to smooth edges
             # _, cleaned_mask = cv2.threshold(blurred_mask, 127, 255, cv2.THRESH_BINARY) # convert blurred mask back to a binary mask by thresholding
 
