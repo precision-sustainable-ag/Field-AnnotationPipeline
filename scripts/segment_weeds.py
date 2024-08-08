@@ -242,7 +242,20 @@ class SingleImageProcessor:
         mask_gray = cv2.bitwise_not(mask)
         return mask_gray
 
+    def _clean_sparse(self, cutout):
+        exg_image = self.make_exg(cutout)
+        exg_mask = np.where(exg_image > 0, 1, 0).astype(np.uint8)
+        # Apply morphological closing and opening
+        cleaned_mask = remove_small_holes(exg_mask.astype(bool), area_threshold=100, connectivity=2).astype(np.uint8)
+        cleaned_mask = remove_small_objects(cleaned_mask.astype(bool), min_size=100, connectivity=2).astype(np.uint8)
 
+        cleaned_mask = cv2.GaussianBlur(cleaned_mask, (7, 7), sigmaX=1)
+        kernel = np.ones((3, 3), np.uint8)  # Default kernel size, assuming 5x5
+
+        cleaned_mask = cv2.morphologyEx(cleaned_mask, cv2.MORPH_CLOSE, kernel)
+        cleaned_mask = cv2.morphologyEx(cleaned_mask, cv2.MORPH_OPEN, kernel)
+        return cleaned_mask
+     
     def _clean_mask(self, mask: np.ndarray, cropped_image_area: np.ndarray, image_id: str, class_id: str) -> np.ndarray:
         """
         Applies morphological opening and closing operations to clean up the mask,
@@ -254,8 +267,6 @@ class SingleImageProcessor:
         # Apply the mask to the image
         cutout = np.where(mask_3d == 1, cropped_image_area, 0)
 
-
-
         # ###use  mask_cutout_bgr  for removing gray
 
         # mask_gray_removed = self.remove_gray_hsv_color(cutout)
@@ -263,24 +274,11 @@ class SingleImageProcessor:
         # cutout_gray_rem = cv2.cvtColor(mask_cutout_bgr, cv2.COLOR_BGR2RGB)
 
 
-
-
-
         # Apply different post processing methods for broad and sparse morphology
         if class_id in [item["class_id"] for item in self.broad_sprase_morph_species['sparse_morphology']]:
             # Apply exg (this is good for ragweed parthenium but not for cocklebur)
             log.info(f"Working with sparse morphology, class_id:{class_id}")
-            exg_image = self.make_exg(cutout)
-            exg_mask = np.where(exg_image > 0, 1, 0).astype(np.uint8)
-            # Apply morphological closing and opening
-            cleaned_mask = remove_small_holes(exg_mask.astype(bool), area_threshold=100, connectivity=2).astype(np.uint8)
-            cleaned_mask = remove_small_objects(cleaned_mask.astype(bool), min_size=100, connectivity=2).astype(np.uint8)
-
-            cleaned_mask = cv2.GaussianBlur(cleaned_mask, (7, 7), sigmaX=1)
-            kernel = np.ones((3, 3), np.uint8)  # Default kernel size, assuming 5x5
-
-            cleaned_mask = cv2.morphologyEx(cleaned_mask, cv2.MORPH_CLOSE, kernel)
-            cleaned_mask = cv2.morphologyEx(cleaned_mask, cv2.MORPH_OPEN, kernel)
+            cleaned_mask = self._clean_sparse(cutout)
             
         elif class_id in [item["class_id"] for item in self.broad_sprase_morph_species['broad_morphology']]:
             log.info(f"Working with broad morphology, class_id:{class_id}")
