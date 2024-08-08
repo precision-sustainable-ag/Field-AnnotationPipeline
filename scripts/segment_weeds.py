@@ -278,7 +278,7 @@ class SingleImageProcessor:
         if class_id in [item["class_id"] for item in self.broad_sprase_morph_species['sparse_morphology']]:
             # Apply exg (this is good for ragweed parthenium but not for cocklebur)
             log.info(f"Working with sparse morphology, class_id:{class_id}")
-            cleaned_mask = self.clean_sparse(cutout)
+            cleaned_mask = self._clean_mask(cutout)
             
         elif class_id in [item["class_id"] for item in self.broad_sprase_morph_species['broad_morphology']]:
             log.info(f"Working with broad morphology, class_id:{class_id}")
