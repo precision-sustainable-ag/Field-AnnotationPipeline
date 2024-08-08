@@ -33,8 +33,10 @@ class SingleImageProcessor:
         self.metadata_dir = Path(metadata_dir)
         self.output_dir = Path(output_dir)
         self.visualization_label_dir = self.output_dir / "vis_masks" # before _clean_mask???????? 
-        self.broad_sprase_morph_species = json.load(open(Path(cfg.data.broad_sprase_morph_species))) ## use with and open for loading json
+        # self.broad_sprase_morph_species = json.load(open(Path(cfg.data.broad_sprase_morph_species))) ## use with and open for loading json
 
+        with open(Path(cfg.data.broad_sprase_morph_species), 'r') as f:
+            self.broad_sprase_morph_species = json.load(f)
 
         for output_dir in [self.output_dir, self.visualization_label_dir]:
             output_dir.mkdir(exist_ok=True, parents=True)
@@ -283,22 +285,27 @@ class SingleImageProcessor:
             cleaned_mask = cv2.morphologyEx(cleaned_mask, cv2.MORPH_OPEN, kernel)
             
         elif class_id in [item["class_id"] for item in self.broad_sprase_morph_species['broad_morphology']]:
-            log.info(f"Working with broad morphology, class_id:{class_id}")
-            # Apply morphological closing and opening
-            cutout_gray = cv2.cvtColor(cutout, cv2.COLOR_RGB2GRAY)
-
-            cleaned_mask = remove_small_holes(cutout_gray.astype(bool), area_threshold=10).astype(np.uint8)
-            cleaned_mask = remove_small_objects(cleaned_mask.astype(bool), min_size=100, connectivity=2).astype(np.uint8)
-
-            cleaned_mask = cv2.GaussianBlur(cleaned_mask, (7, 7), sigmaX=1)
-            kernel = np.ones((3, 3), np.uint8)  # Default kernel size, assuming 5x5
-
-
-            cleaned_mask = cv2.morphologyEx(cleaned_mask, cv2.MORPH_CLOSE, kernel)
-            cleaned_mask = cv2.morphologyEx(cleaned_mask, cv2.MORPH_OPEN, kernel)
+            cleaned_mask = self.clean_broad(class_id, mask)
 
         else:
             log.error(f"class_id:{class_id} not defined in broad_sprase_morph_species")
+
+        return cleaned_mask
+
+    def clean_broad(self, class_id, mask: np.ndarray):
+        log.info(f"Working with broad morphology, class_id:{class_id}")
+
+        # Apply morphological closing and opening
+        # cutout_gray = cv2.cvtColor(cutout, cv2.COLOR_RGB2GRAY)
+
+        cleaned_mask = remove_small_holes(mask.astype(bool), area_threshold=10).astype(np.uint8)
+        cleaned_mask = remove_small_objects(cleaned_mask.astype(bool), min_size=100, connectivity=2).astype(np.uint8)
+
+        cleaned_mask = cv2.GaussianBlur(cleaned_mask, (7, 7), sigmaX=1)
+        kernel = np.ones((3, 3), np.uint8)  # Default kernel size, assuming 5x5
+
+        cleaned_mask = cv2.morphologyEx(cleaned_mask, cv2.MORPH_CLOSE, kernel)
+        cleaned_mask = cv2.morphologyEx(cleaned_mask, cv2.MORPH_OPEN, kernel)
 
         return cleaned_mask
         
