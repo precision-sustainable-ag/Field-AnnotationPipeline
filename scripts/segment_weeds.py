@@ -33,7 +33,7 @@ class SingleImageProcessor:
         self.metadata_dir = Path(metadata_dir)
         self.output_dir = Path(output_dir)
         self.visualization_label_dir = self.output_dir / "vis_masks" # before _clean_mask???????? 
-        self.broad_sprase_morph_species = json.load(open(Path(cfg.data.broad_sprase_morph_species)))
+        self.broad_sprase_morph_species = json.load(open(Path(cfg.data.broad_sprase_morph_species))) ## use with and open for loading json
 
 
         for output_dir in [self.output_dir, self.visualization_label_dir]:
@@ -253,6 +253,18 @@ class SingleImageProcessor:
         mask_3d = np.repeat(mask[:, :, np.newaxis], 3, axis=2)
         # Apply the mask to the image
         cutout = np.where(mask_3d == 1, cropped_image_area, 0)
+
+
+
+        # ###use  mask_cutout_bgr  for removing gray
+
+        # mask_gray_removed = self.remove_gray_hsv_color(cutout)
+        # mask_cutout_bgr = cv2.bitwise_and(mask_cutout_bgr, mask_cutout_bgr, mask=mask_gray_removed)
+        # cutout_gray_rem = cv2.cvtColor(mask_cutout_bgr, cv2.COLOR_BGR2RGB)
+
+
+
+
 
         # Apply different post processing methods for broad and sparse morphology
         if class_id in [item["class_id"] for item in self.broad_sprase_morph_species['sparse_morphology']]:

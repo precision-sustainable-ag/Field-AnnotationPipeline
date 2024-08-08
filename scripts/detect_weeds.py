@@ -306,10 +306,13 @@ class ProcessDetections:
             detection_results["class_id"] = class_id
             if detection_results is None:
                 return
+            
+            cropout_dir = Path(self.output_dir, "cropout")
+            cropout_dir.mkdir(exist_ok=True, parents=True)
 
             cropout_image = self.image_processor.crop_image(image, detection_results['bbox'])
             if cropout_image is not None:
-                cropout_image_path = self.output_dir / f"{image_path.stem}_cropout.jpg"
+                cropout_image_path = cropout_dir / f"{image_path.stem}_cropout.jpg"
                 self.image_processor.save_image(cropout_image, cropout_image_path)
 
             exif_data = self.metadata_extractor.get_exif_data(str(image_path))
