@@ -67,21 +67,12 @@ class SingleImageProcessor:
 
             log.info(f"Extracted bounding box: {bbox}")
             self._find_bbox_center(bbox)
-            image = self._read_image(image_path)
-            masked_image, class_masked_image = self._create_masks(image, bbox)
+            # image = self._read_image(image_path)
+            # masked_image, class_masked_image = self._create_masks(image, bbox)
 
-            # Save outputs according to class_id
-            class_id = data['detection_results']["class_id"]
-            save_class_dir = Path(self.output_dir, f"{class_id}")
-            save_class_dir.mkdir(exist_ok=True, parents=True)
+            # class_masked_image_3d = np.repeat(class_masked_image[:, :, np.newaxis], 3, axis=2).astype(np.uint8) # convert the mask to 3d
 
-            # mask_name = Path(image_path).stem + '.png'
-            # log.info(f"Saving masks ({Path(image_path).stem}) to {self.visualization_label_dir.parent}")
-            # self.save_compressed_image(masked_image, self.visualization_label_dir / mask_name) # masked image saved in visualization_label_dir
-            # cv2.imwrite(str(save_class_dir / mask_name), class_masked_image.astype(np.uint8), [cv2.IMWRITE_PNG_COMPRESSION, 1]) # class_masked_image saved in output_dir
-            class_masked_image_3d = np.repeat(class_masked_image[:, :, np.newaxis], 3, axis=2).astype(np.uint8) # convert the mask to 3d
-
-            return class_masked_image, class_masked_image_3d, data, save_class_dir, masked_image
+            return data, bbox
         
         else:
             log.error(f"No JSON file for {json_path}")
@@ -94,29 +85,39 @@ class SingleImageProcessor:
 
         log.info(f"Removing gray and saving final cutout")
 
-        image_path, json_path = input_paths
-        class_masked_image, class_masked_image_3d, data, save_class_dir, masked_image = self.process_image(input_paths)
+        # Parameters required to save the cutout
+        data, bbox = self.process_image(input_paths)
+        image_path, _ = input_paths
         image = self._read_image(image_path)
+        masked_image, class_masked_image = self._create_masks(image, bbox)
+        class_masked_image = class_masked_image.astype(np.uint8)
+        class_masked_image_3d = np.repeat(class_masked_image[:, :, np.newaxis], 3, axis=2).astype(np.uint8) # convert the mask to 3d
+
+        # Save outputs according to class_id
+        class_id = data['detection_results']["class_id"]
+        save_class_dir = Path(self.output_dir, f"{class_id}")
+        save_class_dir.mkdir(exist_ok=True, parents=True)
 
         # Creating the final cutout:
         mask_cutout_bgr = np.where(class_masked_image_3d != 255, image, 0)
         mask_cutout_hsv = cv2.cvtColor(mask_cutout_bgr, cv2.COLOR_BGR2HSV)
-        mask_gray_removed = self.remove_gray_hsv_color(mask_cutout_hsv)
-        mask_gray_removed_bgr = cv2.bitwise_and(mask_cutout_bgr, mask_cutout_bgr, mask=mask_gray_removed)
-        final_cutout = cv2.cvtColor(mask_gray_removed_bgr, cv2.COLOR_BGR2RGB)
+        mask_gray_removed = self.remove_gray_hsv_color(mask_cutout_hsv).astype(np.uint8) #removing gray background from the image 
 
-        log.info("Saving mask cutout")
+        # final_combined_cutout_mask = cv2.bitwise_and(class_masked_image, mask_gray_removed)
+        final_combined_cutout_mask = np.where(mask_gray_removed == 255, class_masked_image, 255)
+        final_cutout_bgr = cv2.bitwise_and(mask_cutout_bgr, mask_cutout_bgr, mask=mask_gray_removed)
+        final_cutout_rgb = cv2.cvtColor(final_cutout_bgr, cv2.COLOR_BGR2RGB)
+
         # Saving final mask and cutout
         final_mask_name = Path(image_path).stem + '.png'
         log.info(f"Saving masks ({Path(image_path).stem}) to {self.visualization_label_dir.parent}")
         self.save_compressed_image(masked_image, self.visualization_label_dir / final_mask_name) # masked image saved in visualization_label_dir
-        cv2.imwrite(str(save_class_dir / final_mask_name), class_masked_image.astype(np.uint8), [cv2.IMWRITE_PNG_COMPRESSION, 1]) # class_masked_image saved in output_dir
+        cv2.imwrite(str(save_class_dir / final_mask_name), final_combined_cutout_mask.astype(np.uint8), [cv2.IMWRITE_PNG_COMPRESSION, 1]) # class_masked_image saved in output_dir
 
+        log.info("Saving final cutout")
         cutout_name = Path(image_path).stem + '_cutout.png'
-        cv2.imwrite(str(save_class_dir / cutout_name), final_cutout.astype(np.uint8), [cv2.IMWRITE_PNG_COMPRESSION, 1])  # mask_cutout saved in output_dir
+        cv2.imwrite(str(save_class_dir / cutout_name), final_cutout_rgb.astype(np.uint8), [cv2.IMWRITE_PNG_COMPRESSION, 1])  # mask_cutout saved in output_dir
 
-        
-        
     def save_compressed_image(self, image: np.ndarray, path: str, quality: int = 98):
         """
         Save the image in a compressed format.

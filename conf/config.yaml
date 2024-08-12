@@ -24,6 +24,7 @@ data:
   datadir: ${general.workdir}/data
   temp_image_dir: ${data.datadir}/images_testing/test_images/input
   temp_output_dir: ${data.datadir}/images_testing/test_images/output
+  # visualization_label_dir: ${data.datadir}/images_testing/test_images/output/vis_masks
   species_info: ${data.datadir}/field-utils/species_info.json
   field_species_name: ${data.datadir}/field-utils/field_species_name.json
   broad_sprase_morph_species: ${data.datadir}/field-utils/broad_sprase_morph_species.json
