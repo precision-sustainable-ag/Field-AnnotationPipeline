@@ -105,11 +105,14 @@ class SingleImageProcessor:
 
         # final_combined_cutout_mask = cv2.bitwise_and(class_masked_image, mask_gray_removed)
         final_combined_cutout_mask = np.where(mask_gray_removed == 255, class_masked_image, 255)
+        final_combined_cutout_mask[final_combined_cutout_mask == 255] = 0 # to make the values in the mask as [class_id 0]
+        print(np.unique(final_combined_cutout_mask))
+
         final_cutout_bgr = cv2.bitwise_and(mask_cutout_bgr, mask_cutout_bgr, mask=mask_gray_removed)
         final_cutout_rgb = cv2.cvtColor(final_cutout_bgr, cv2.COLOR_BGR2RGB)
 
         # Saving final mask and cutout
-        final_mask_name = Path(image_path).stem + '.png'
+        final_mask_name = Path(image_path).stem + '_mask.png'
         log.info(f"Saving masks ({Path(image_path).stem}) to {self.visualization_label_dir.parent}")
         self.save_compressed_image(masked_image, self.visualization_label_dir / final_mask_name) # masked image saved in visualization_label_dir
         cv2.imwrite(str(save_class_dir / final_mask_name), final_combined_cutout_mask.astype(np.uint8), [cv2.IMWRITE_PNG_COMPRESSION, 1]) # class_masked_image saved in output_dir
