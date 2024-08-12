@@ -52,7 +52,7 @@ class SingleImageProcessor:
         """
         image_path, json_path = input_paths
         log.info(f"Processing image: {image_path}")
-
+        
         if Path(json_path).exists():
             with open(json_path, 'r') as f:
                 data = json.load(f)
@@ -70,34 +70,53 @@ class SingleImageProcessor:
             image = self._read_image(image_path)
             masked_image, class_masked_image = self._create_masks(image, bbox)
 
+            # Save outputs according to class_id
             class_id = data['detection_results']["class_id"]
-
             save_class_dir = Path(self.output_dir, f"{class_id}")
             save_class_dir.mkdir(exist_ok=True, parents=True)
 
-            mask_name = Path(image_path).stem + '.png'
-            log.info(f"Saving masks ({Path(image_path).stem}) to {self.visualization_label_dir.parent}")
-            self.save_compressed_image(masked_image, self.visualization_label_dir / mask_name) # masked image saved in visualization_label_dir
-            cv2.imwrite(str(save_class_dir / mask_name), class_masked_image.astype(np.uint8), [cv2.IMWRITE_PNG_COMPRESSION, 1]) # class_masked_image saved in output_dir
+            # mask_name = Path(image_path).stem + '.png'
+            # log.info(f"Saving masks ({Path(image_path).stem}) to {self.visualization_label_dir.parent}")
+            # self.save_compressed_image(masked_image, self.visualization_label_dir / mask_name) # masked image saved in visualization_label_dir
+            # cv2.imwrite(str(save_class_dir / mask_name), class_masked_image.astype(np.uint8), [cv2.IMWRITE_PNG_COMPRESSION, 1]) # class_masked_image saved in output_dir
             class_masked_image_3d = np.repeat(class_masked_image[:, :, np.newaxis], 3, axis=2).astype(np.uint8) # convert the mask to 3d
 
-            # Save the final cutout:
-            mask_cutout_name = Path(image_path).stem + '_cutout.png'
-            
-            class_masked_image_3d = np.repeat(class_masked_image[:, :, np.newaxis], 3, axis=2).astype(np.uint8) # convert the mask to 3d
-            mask_cutout_bgr = np.where(class_masked_image_3d != 255, image, 0)
-            mask_cutout_hsv = cv2.cvtColor(mask_cutout_bgr, cv2.COLOR_BGR2HSV)
-            mask_gray_removed = self.remove_gray_hsv_color(mask_cutout_hsv)
-            mask_cutout_bgr = cv2.bitwise_and(mask_cutout_bgr, mask_cutout_bgr, mask=mask_gray_removed)
-            final_mask_cutout = cv2.cvtColor(mask_cutout_bgr, cv2.COLOR_BGR2RGB)
-
-            log.info("Saving mask cutout")
-            cv2.imwrite(str(save_class_dir / mask_cutout_name), final_mask_cutout.astype(np.uint8), [cv2.IMWRITE_PNG_COMPRESSION, 1])  # mask_cutout saved in output_dir
+            return class_masked_image, class_masked_image_3d, data, save_class_dir, masked_image
+        
         else:
             log.error(f"No JSON file for {json_path}")
             return None
-        
 
+    def save_cutout(self, input_paths: Tuple[str, str]):
+        """
+        Saves the final cutout and mask after removing gray mat.
+        """
+
+        log.info(f"Removing gray and saving final cutout")
+
+        image_path, json_path = input_paths
+        class_masked_image, class_masked_image_3d, data, save_class_dir, masked_image = self.process_image(input_paths)
+        image = self._read_image(image_path)
+
+        # Creating the final cutout:
+        mask_cutout_bgr = np.where(class_masked_image_3d != 255, image, 0)
+        mask_cutout_hsv = cv2.cvtColor(mask_cutout_bgr, cv2.COLOR_BGR2HSV)
+        mask_gray_removed = self.remove_gray_hsv_color(mask_cutout_hsv)
+        mask_gray_removed_bgr = cv2.bitwise_and(mask_cutout_bgr, mask_cutout_bgr, mask=mask_gray_removed)
+        final_cutout = cv2.cvtColor(mask_gray_removed_bgr, cv2.COLOR_BGR2RGB)
+
+        log.info("Saving mask cutout")
+        # Saving final mask and cutout
+        final_mask_name = Path(image_path).stem + '.png'
+        log.info(f"Saving masks ({Path(image_path).stem}) to {self.visualization_label_dir.parent}")
+        self.save_compressed_image(masked_image, self.visualization_label_dir / final_mask_name) # masked image saved in visualization_label_dir
+        cv2.imwrite(str(save_class_dir / final_mask_name), class_masked_image.astype(np.uint8), [cv2.IMWRITE_PNG_COMPRESSION, 1]) # class_masked_image saved in output_dir
+
+        cutout_name = Path(image_path).stem + '_cutout.png'
+        cv2.imwrite(str(save_class_dir / cutout_name), final_cutout.astype(np.uint8), [cv2.IMWRITE_PNG_COMPRESSION, 1])  # mask_cutout saved in output_dir
+
+        
+        
     def save_compressed_image(self, image: np.ndarray, path: str, quality: int = 98):
         """
         Save the image in a compressed format.
@@ -169,7 +188,6 @@ class SingleImageProcessor:
 
         mask, _, _ = self.mask_predictor.predict_torch(point_coords=None, point_labels=None, boxes=transformed_box, multimask_output=True, hq_token_only=False)
 
-        
         self._apply_masks(mask, masked_image_rgba, class_masked_image, bbox, im_pad_size, sam_crop_size_x, sam_crop_size_y)
 
     def _get_bounding_boxes(self, bbox: dict, plant_bbox: np.ndarray, im_pad_size: int, sam_crop_size_x: int, sam_crop_size_y: int) -> Tuple[np.ndarray, np.ndarray]:
@@ -217,14 +235,12 @@ class SingleImageProcessor:
 
         return exg#.astype("uint8")
     
-    
     def get_hsv_from_bgr(self, bgr_list):
         bgr_gray = np.array(bgr_list, dtype=np.uint8)
 
         # Convert BGR gray color to HSV
         hsv_gray = cv2.cvtColor(np.uint8([[bgr_gray]]), cv2.COLOR_BGR2HSV)[0][0]
         return hsv_gray
-
 
     def remove_gray_hsv_color(self, hsv_image) -> np.ndarray:
         
@@ -233,20 +249,33 @@ class SingleImageProcessor:
 
         # Create a mask for the gray color
         mask = cv2.inRange(hsv_image, np.array(lower_gray), np.array(upper_gray))
-
-        # Invert the mask to get the mask for all colors except gray
-        mask_inv = cv2.bitwise_not(mask)
-
-        # # Use the inverted mask to keep only the non-gray areas of the original image
-        # result = cv2.bitwise_and(image, image, mask=mask_inv)
-
         # Invert the mask to keep everything except the gray color
         mask_gray = cv2.bitwise_not(mask)
+        
         return mask_gray
-
+     
     def _clean_sparse(self, cutout):
+
+
+
+        # checkout method save_cutout for gray removal
+
+
+
+        # Exg masking
         exg_image = self.make_exg(cutout)
         exg_mask = np.where(exg_image > 0, 1, 0).astype(np.uint8)
+        
+        # Broadcast the mask to have the same shape as the image
+        exg_mask_3d = np.repeat(exg_mask[:, :, np.newaxis], 3, axis=2)
+        # Apply the mask to the image
+        cutout_exg = np.where(exg_mask_3d == 1, cutout, 0)
+
+        # # Gray masking
+        # cutout_exg_hsv = cv2.cvtColor(cutout_exg, cv2.COLOR_RGB2HSV)
+        # cutout_gray_mask = self.remove_gray_hsv_color(cutout_exg_hsv) ### This is not working for the final image. It should be similar to exg_mask
+
+
         # Apply morphological closing and opening
         cleaned_mask = remove_small_holes(exg_mask.astype(bool), area_threshold=100, connectivity=2).astype(np.uint8)
         cleaned_mask = remove_small_objects(cleaned_mask.astype(bool), min_size=100, connectivity=2).astype(np.uint8)
@@ -257,45 +286,9 @@ class SingleImageProcessor:
         cleaned_mask = cv2.morphologyEx(cleaned_mask, cv2.MORPH_CLOSE, kernel)
         cleaned_mask = cv2.morphologyEx(cleaned_mask, cv2.MORPH_OPEN, kernel)
         return cleaned_mask
-     
-    def _clean_mask(self, mask: np.ndarray, cropped_image_area: np.ndarray, image_id: str, class_id: str) -> np.ndarray:
-        """
-        Applies morphological opening and closing operations to clean up the mask,
-        removes large non-green components.
-        """
-        log.info("Starting clean mask.")
-        # Broadcast the mask to have the same shape as the image
-        mask_3d = np.repeat(mask[:, :, np.newaxis], 3, axis=2)
-        # Apply the mask to the image
-        cutout = np.where(mask_3d == 1, cropped_image_area, 0)
 
-        # ###use  mask_cutout_bgr  for removing gray
-
-        # mask_gray_removed = self.remove_gray_hsv_color(cutout)
-        # mask_cutout_bgr = cv2.bitwise_and(mask_cutout_bgr, mask_cutout_bgr, mask=mask_gray_removed)
-        # cutout_gray_rem = cv2.cvtColor(mask_cutout_bgr, cv2.COLOR_BGR2RGB)
-
-
-        # Apply different post processing methods for broad and sparse morphology
-        if class_id in [item["class_id"] for item in self.broad_sprase_morph_species['sparse_morphology']]:
-            # Apply exg (this is good for ragweed parthenium but not for cocklebur)
-            log.info(f"Working with sparse morphology, class_id:{class_id}")
-            cleaned_mask = self._clean_sparse(cutout)
-            
-        elif class_id in [item["class_id"] for item in self.broad_sprase_morph_species['broad_morphology']]:
-            cleaned_mask = self.clean_broad(class_id, mask)
-
-        else:
-            log.error(f"class_id:{class_id} not defined in broad_sprase_morph_species")
-
-        return cleaned_mask
-
-    def clean_broad(self, class_id, mask: np.ndarray):
-        log.info(f"Working with broad morphology, class_id:{class_id}")
-
+    def _clean_broad(self, class_id, mask: np.ndarray):
         # Apply morphological closing and opening
-        # cutout_gray = cv2.cvtColor(cutout, cv2.COLOR_RGB2GRAY)
-
         cleaned_mask = remove_small_holes(mask.astype(bool), area_threshold=10).astype(np.uint8)
         cleaned_mask = remove_small_objects(cleaned_mask.astype(bool), min_size=100, connectivity=2).astype(np.uint8)
 
@@ -304,9 +297,32 @@ class SingleImageProcessor:
 
         cleaned_mask = cv2.morphologyEx(cleaned_mask, cv2.MORPH_CLOSE, kernel)
         cleaned_mask = cv2.morphologyEx(cleaned_mask, cv2.MORPH_OPEN, kernel)
+        return cleaned_mask
+
+    def _clean_mask(self, mask: np.ndarray, cropped_image_area: np.ndarray, image_id: str, class_id: str) -> np.ndarray:
+        """
+        Applies morphological opening and closing operations to clean up the mask, exg masking and gray color masking to remove large non-green components 
+        """
+        log.info("Starting clean mask.")
+        # Broadcast the mask to have the same shape as the image
+        mask_3d = np.repeat(mask[:, :, np.newaxis], 3, axis=2)
+        # Apply the mask to the image
+        cutout = np.where(mask_3d == 1, cropped_image_area, 0)
+
+        # Apply different post processing methods for broad and sparse morphology
+        if class_id in [item["class_id"] for item in self.broad_sprase_morph_species['sparse_morphology']]:
+            # Apply exg (this is good for ragweed parthenium but not for cocklebur)
+            log.info(f"Working with sparse morphology, class_id:{class_id}")
+            cleaned_mask = self._clean_sparse(cutout)
+            
+        elif class_id in [item["class_id"] for item in self.broad_sprase_morph_species['broad_morphology']]:
+            cleaned_mask = self._clean_broad(class_id, mask)
+
+        else:
+            log.error(f"class_id:{class_id} not defined in broad_sprase_morph_species")
 
         return cleaned_mask
-        
+            
     def _apply_masks(self, masks: torch.Tensor, masked_image_rgba: np.ndarray, class_masked_image: np.ndarray, bbox: dict, im_pad_size: int, sam_crop_size_x: int, sam_crop_size_y: int):
         """
         Applies the generated masks to the respective mask images. _clean_mask is executed here.
@@ -324,7 +340,6 @@ class SingleImageProcessor:
             cropped_mask = full_mask[crop_start_y:crop_end_y, crop_start_x:crop_end_x]
 
             cleaned_cropped_mask = self._clean_mask(cropped_mask, cropped_image_area, bbox["image_id"], bbox["class_id"])
-            # cleaned_cropped_mask = cropped_mask
             full_mask[crop_start_y:crop_end_y, crop_start_x:crop_end_x] = cleaned_cropped_mask # applied cleaned mask (from _clean_mask to the full mask) 
             alpha = 0.5
             for c in range(3):
@@ -357,7 +372,8 @@ def process_sequentially(directory_initializer: DirectoryInitializer, processor:
         log.info(f"Processing image: {image_path}")
         json_path = str(directory_initializer.metadata_dir / f"{image_path.stem}.json")
         input_paths = (image_path, json_path)
-        processor.process_image(input_paths)
+        # processor.process_image(input_paths)
+        processor.save_cutout(input_paths)
 
 def process_concurrently(directory_initializer: DirectoryInitializer, processor: SingleImageProcessor):
     """
@@ -372,7 +388,8 @@ def process_concurrently(directory_initializer: DirectoryInitializer, processor:
     max_workers = int(len(os.sched_getaffinity(0)) / 5)
     log.info(f"Using {max_workers} workers for multiprocessing")
     with ProcessPoolExecutor(max_workers=max_workers, mp_context=mp.get_context('spawn')) as executor:
-        executor.map(processor.process_image, input_paths)
+        # executor.map(processor.process_image, input_paths)
+        executor.map(processor.save_cutout, input_paths)
 
 def main(cfg: DictConfig) -> None:
     """Main function to process a batch of images, either sequentially or concurrently."""
