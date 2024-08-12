@@ -83,7 +83,7 @@ class SingleImageProcessor:
         Saves the final cutout and mask after removing gray mat.
         """
 
-        log.info(f"Removing gray and saving final cutout")
+        log.info(f"Removing gray and saving cropout, final mask and cutout")
 
         # Parameters required to save the cutout
         data, bbox = self.process_image(input_paths)
@@ -105,19 +105,26 @@ class SingleImageProcessor:
 
         # final_combined_cutout_mask = cv2.bitwise_and(class_masked_image, mask_gray_removed)
         final_combined_cutout_mask = np.where(mask_gray_removed == 255, class_masked_image, 255)
-        final_combined_cutout_mask[final_combined_cutout_mask == 255] = 0 # to make the values in the mask as [class_id 0]
-        print(np.unique(final_combined_cutout_mask))
+        final_combined_cutout_mask = self._crop_image(final_combined_cutout_mask, bbox['y_min'], bbox['y_max'], bbox['x_min'], bbox['x_max']) # cropped according to bbox
 
+        # final_combined_cutout_mask[final_combined_cutout_mask == 255] = 0 # to make the values in the mask as [class_id 0] 
         final_cutout_bgr = cv2.bitwise_and(mask_cutout_bgr, mask_cutout_bgr, mask=mask_gray_removed)
         final_cutout_rgb = cv2.cvtColor(final_cutout_bgr, cv2.COLOR_BGR2RGB)
+        final_cutout_rgb = self._crop_image(final_cutout_rgb, bbox['y_min'], bbox['y_max'], bbox['x_min'], bbox['x_max']) # cropped according to bbox
 
-        # Saving final mask and cutout
+        # Saving cropout, final mask and cutout   
+        image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        image_cropped = self._crop_image(image_rgb, bbox['y_min'], bbox['y_max'], bbox['x_min'], bbox['x_max']) # cropped according to bbox
+        cropout_name = Path(image_path).stem + '_cropout.png'
+        # log.info(f"Saving masks ({Path(image_path).stem}) to {self.visualization_label_dir.parent}")
+        cv2.imwrite(str(save_class_dir / cropout_name), image_cropped.astype(np.uint8), [cv2.IMWRITE_PNG_COMPRESSION, 1])  # mask_cutout saved in output_dir
+
         final_mask_name = Path(image_path).stem + '_mask.png'
-        log.info(f"Saving masks ({Path(image_path).stem}) to {self.visualization_label_dir.parent}")
+        # log.info(f"Saving masks ({Path(image_path).stem}) to {self.visualization_label_dir.parent}")
         self.save_compressed_image(masked_image, self.visualization_label_dir / final_mask_name) # masked image saved in visualization_label_dir
         cv2.imwrite(str(save_class_dir / final_mask_name), final_combined_cutout_mask.astype(np.uint8), [cv2.IMWRITE_PNG_COMPRESSION, 1]) # class_masked_image saved in output_dir
 
-        log.info("Saving final cutout")
+        # log.info("Saving final cutout")
         cutout_name = Path(image_path).stem + '_cutout.png'
         cv2.imwrite(str(save_class_dir / cutout_name), final_cutout_rgb.astype(np.uint8), [cv2.IMWRITE_PNG_COMPRESSION, 1])  # mask_cutout saved in output_dir
 
@@ -181,7 +188,7 @@ class SingleImageProcessor:
         """
         plant_bbox = np.array([int(bbox['x_min']), int(bbox['y_min']), int(bbox['x_max']), int(bbox['y_max'])])
         sam_crop_size_x, sam_crop_size_y = self._determine_crop_size(bbox)
-        cropped_image = self._crop_image(image_expanded, bbox, im_pad_size, sam_crop_size_x, sam_crop_size_y)
+        cropped_image = self._crop_image_padded(image_expanded, bbox, im_pad_size, sam_crop_size_x, sam_crop_size_y)
 
         self.mask_predictor.set_image(cropped_image)
         log.info(f"Cropped image size for SAM predictor: {cropped_image.shape} ({cropped_image.dtype})")
@@ -202,7 +209,11 @@ class SingleImageProcessor:
         cropped_bbox = padded_bbox - [bbox['center_x'] + im_pad_size - sam_crop_size_x / 2, bbox['center_y'] + im_pad_size - sam_crop_size_y / 2, bbox['center_x'] + im_pad_size - sam_crop_size_x / 2, bbox['center_y'] + im_pad_size - sam_crop_size_y / 2]
         return padded_bbox, cropped_bbox
 
-    def _crop_image(self, image_expanded: np.ndarray, bbox: dict, im_pad_size: int, sam_crop_size_x: int, sam_crop_size_y: int) -> np.ndarray:
+    def _crop_image(self, image, y_min, y_max, x_min, x_max):
+        cropped_image = image[y_min: y_max, x_min : x_max]
+        return cropped_image
+    
+    def _crop_image_padded(self, image_expanded: np.ndarray, bbox: dict, im_pad_size: int, sam_crop_size_x: int, sam_crop_size_y: int) -> np.ndarray:
         """
         Crops the image based on the annotation and padding size.
         """
