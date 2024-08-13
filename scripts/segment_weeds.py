@@ -47,7 +47,10 @@ class SingleImageProcessor:
 
     def process_image(self, input_paths: Tuple[str, str]):
         """
-        Processes a single image and its corresponding annotations from JSON.
+        Processes an image and its corresponding JSON annotations.
+
+        Args:
+            input_paths (Tuple[str, str]): Paths to the image and JSON file.
         """
         image_path, json_path = input_paths
         log.info(f"Processing image: {image_path}")
@@ -67,69 +70,71 @@ class SingleImageProcessor:
             log.info(f"Extracted bounding box: {bbox}")
             self._find_bbox_center(bbox)
             return data, bbox
-        
         else:
-            log.error(f"No JSON file for {json_path}")
+            log.error(f"No JSON file found for {json_path}")
             return None
 
     def save_cutout(self, input_paths: Tuple[str, str]):
         """
-        Saves the final cutout and mask after removing gray mat.
+        Saves the final cutout, cropped image, and mask after removing the gray mat.
+
+        Args:
+            input_paths (Tuple[str, str]): Paths to the input image and JSON file.
         """
-
-        log.info(f"Removing gray and saving cropout, final mask and cutout")
-
-        # Parameters required to save the cutout
+        log.info("Starting process to remove gray mat and save cropout, final mask, and cutout.")
+        
+        # Process image to get bounding box and data
         data, bbox = self.process_image(input_paths)
         image_path, _ = input_paths
+
+        # Read the image
         image = self._read_image(image_path)
+        
+        # Create and process masks
         masked_image, class_masked_image = self._create_masks(image, bbox)
         class_masked_image = class_masked_image.astype(np.uint8)
-        class_masked_image_cropped = self._crop_image(class_masked_image, bbox['y_min'], bbox['y_max'], bbox['x_min'], bbox['x_max']) # cropped according to bbox
-        class_masked_image_3d = np.repeat(class_masked_image[:, :, np.newaxis], 3, axis=2).astype(np.uint8) # convert the mask to 3d
+        class_masked_image_cropped = self._crop_image(class_masked_image, bbox['y_min'], bbox['y_max'], bbox['x_min'], bbox['x_max'])
 
-
-        # Save outputs according to class_id
+        # Convert the mask to 3D
+        class_masked_image_3d = np.repeat(class_masked_image[:, :, np.newaxis], 3, axis=2).astype(np.uint8)
+        
+        # Directory setup for saving outputs
         class_id = data['detection_results']["class_id"]
         save_class_dir = Path(self.output_dir, f"{class_id}")
         save_class_dir.mkdir(exist_ok=True, parents=True)
-
-        # # Creating the final cutout:
-        # mask_cutout_bgr = np.where(class_masked_image_3d != 255, image, 0)
-        # mask_cutout_hsv = cv2.cvtColor(mask_cutout_bgr, cv2.COLOR_BGR2HSV)
-        # mask_gray_removed = self.remove_gray_hsv_color(mask_cutout_hsv).astype(np.uint8) #removing gray background from the image 
-
-        # final_combined_cutout_mask = cv2.bitwise_and(class_masked_image, mask_gray_removed)
-        # final_combined_cutout_mask = np.where(mask_gray_removed == 255, class_masked_image, 255)
-        # final_combined_cutout_mask = self._crop_image(final_combined_cutout_mask, bbox['y_min'], bbox['y_max'], bbox['x_min'], bbox['x_max']) # cropped according to bbox
-
-        # final_cutout_bgr = cv2.bitwise_and(mask_cutout_bgr, mask_cutout_bgr, mask=mask_gray_removed)
+        log.info(f"Output directory created at: {save_class_dir}")
+        
+        # Create the final cutout image
         final_cutout_bgr = np.where(class_masked_image_3d != 255, image, 0)
-
-        # final_cutout_bgr = cv2.bitwise_and(image, image, mask=class_masked_image)
         final_cutout_rgb = cv2.cvtColor(final_cutout_bgr, cv2.COLOR_BGR2RGB)
-        final_cutout_rgb = self._crop_image(final_cutout_rgb, bbox['y_min'], bbox['y_max'], bbox['x_min'], bbox['x_max']) # cropped according to bbox
+        final_cutout_rgb = self._crop_image(final_cutout_rgb, bbox['y_min'], bbox['y_max'], bbox['x_min'], bbox['x_max'])
 
-        # Saving cropout, final mask and cutout   
+        # Save cropped image
         image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        image_cropped = self._crop_image(image_rgb, bbox['y_min'], bbox['y_max'], bbox['x_min'], bbox['x_max']) # cropped according to bbox
+        image_cropped = self._crop_image(image_rgb, bbox['y_min'], bbox['y_max'], bbox['x_min'], bbox['x_max'])
         cropout_name = Path(image_path).stem + '_cropout.png'
-        # log.info(f"Saving masks ({Path(image_path).stem}) to {self.visualization_label_dir.parent}")
-        cv2.imwrite(str(save_class_dir / cropout_name), image_cropped.astype(np.uint8), [cv2.IMWRITE_PNG_COMPRESSION, 1])  # mask_cutout saved in output_dir
-
-        # log.info(f"Saving masks ({Path(image_path).stem}) to {self.visualization_label_dir.parent}")
+        cv2.imwrite(str(save_class_dir / cropout_name), image_cropped.astype(np.uint8), [cv2.IMWRITE_PNG_COMPRESSION, 1])
+        log.info(f"Cropped image saved as: {cropout_name}")
+        
+        # Save the final mask
         final_mask_name = Path(image_path).stem + '_mask.png'
-        self.save_compressed_image(masked_image, self.visualization_label_dir / final_mask_name) # masked image saved in visualization_label_dir
-        # cv2.imwrite(str(save_class_dir / final_mask_name), final_combined_cutout_mask.astype(np.uint8), [cv2.IMWRITE_PNG_COMPRESSION, 1]) # class_masked_image saved in output_dir
-        cv2.imwrite(str(save_class_dir / final_mask_name), class_masked_image_cropped.astype(np.uint8), [cv2.IMWRITE_PNG_COMPRESSION, 1]) # class_masked_image saved in output_dir
+        self.save_compressed_image(masked_image, self.visualization_label_dir / final_mask_name)
+        cv2.imwrite(str(save_class_dir / final_mask_name), class_masked_image_cropped.astype(np.uint8), [cv2.IMWRITE_PNG_COMPRESSION, 1])
+        log.info(f"Final mask saved as: {final_mask_name}")
 
-        # log.info("Saving final cutout")
+        # Save the final cutout
         cutout_name = Path(image_path).stem + '_cutout.png'
-        cv2.imwrite(str(save_class_dir / cutout_name), final_cutout_rgb.astype(np.uint8), [cv2.IMWRITE_PNG_COMPRESSION, 1])  # mask_cutout saved in output_dir
+        cv2.imwrite(str(save_class_dir / cutout_name), final_cutout_rgb.astype(np.uint8), [cv2.IMWRITE_PNG_COMPRESSION, 1])
+        log.info(f"Final cutout saved as: {cutout_name}")
 
     def save_compressed_image(self, image: np.ndarray, path: str, quality: int = 98):
         """
-        Save the image in a compressed format.
+        Save the image in a compressed JPEG format.
+
+        Args:
+            image (np.ndarray): The image to save, expected in RGB format.
+            path (str): The file path where the image will be saved.
+            quality (int, optional): The quality of the JPEG compression (0 to 100). Default is 98.
         """
         image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
         is_success, encoded_image = cv2.imencode(".jpg", image, [int(cv2.IMWRITE_JPEG_QUALITY), quality])
@@ -139,21 +144,40 @@ class SingleImageProcessor:
 
     def _find_bbox_center(self, bbox: dict):
         """
-        Processes annotation data to calculate bounding box coordinates.
+        Calculate and add the center coordinates of the bounding box to the dictionary.
+
+        Args:
+            bbox (dict): Dictionary containing bounding box coordinates with keys 
+                        'x_min', 'x_max', 'y_min', and 'y_max'.
         """
         bbox['center_x'] = (bbox['x_min'] + bbox['x_max']) / 2
         bbox['center_y'] = (bbox['y_min'] + bbox['y_max']) / 2
 
     def _read_image(self, image_path: Path) -> np.ndarray:
         """
-        Reads an image from the specified path.
+        Read an image from a specified path and convert it to RGB format.
+
+        Args:
+            image_path (Path): Path to the image file.
+
+        Returns:
+            np.ndarray: The image in RGB format.
         """
         log.info(f"Reading image and converting to RGB: {image_path}")
         return cv2.cvtColor(cv2.imread(str(image_path)), cv2.COLOR_BGR2RGB)
 
     def _create_masks(self, image: np.ndarray, bbox: dict) -> Tuple[np.ndarray, np.ndarray]:
         """
-        Creates masked images based on annotations.
+        Create masked images based on the given bounding box annotations.
+
+        Args:
+            image (np.ndarray): The input image in RGB format.
+            bbox (dict): Dictionary containing bounding box coordinates and other annotations.
+
+        Returns:
+            Tuple[np.ndarray, np.ndarray]: Tuple containing two arrays:
+                                            - Masked image with RGBA channels.
+                                            - Class mask image (binary mask).
         """
         im_size_X, im_size_Y = image.shape[1], image.shape[0]
         im_pad_size = 1500
@@ -170,20 +194,39 @@ class SingleImageProcessor:
 
     def _get_bbox_area(self, bbox: dict, im_size_X: int, im_size_Y: int):
         """
-        Updates annotations with absolute coordinates based on image dimensions.
+        Update the bounding box dictionary with the area of the bounding box.
+
+        Args:
+            bbox (dict): Dictionary containing bounding box coordinates.
+            im_size_X (int): Width of the image.
+            im_size_Y (int): Height of the image.
         """
         bbox['bbox_area'] = bbox['width'] * bbox['height']
 
     def _calculate_padded_bbox(self, bbox: dict, im_pad_size: int) -> np.ndarray:
         """
-        Calculate the padded bounding box coordinates.
+        Calculate the coordinates of the bounding box after adding padding.
+
+        Args:
+            bbox (dict): Dictionary containing bounding box coordinates.
+            im_pad_size (int): The amount of padding added to the image.
+
+        Returns:
+            np.ndarray: Array containing the padded bounding box coordinates.
         """
         x_min, y_min, x_max, y_max = bbox["x_min"], bbox["y_min"], bbox["x_max"], bbox["y_max"]
         return np.array([x_min + im_pad_size, y_min + im_pad_size, x_max + im_pad_size, y_max + im_pad_size])
-
+        
     def _process_annotation(self, bbox: dict, image_expanded: np.ndarray, masked_image_rgba: np.ndarray, class_masked_image: np.ndarray, im_pad_size: int):
         """
-        Processes a single annotation and updates the mask images. Sam is executed here.
+        Processes a single annotation to update the mask images using the SAM predictor.
+
+        Args:
+            bbox (dict): Dictionary containing bounding box coordinates and other annotations.
+            image_expanded (np.ndarray): The expanded image with padding.
+            masked_image_rgba (np.ndarray): The masked image with RGBA channels.
+            class_masked_image (np.ndarray): The class mask image (binary mask).
+            im_pad_size (int): The padding size added to the image.
         """
         plant_bbox = np.array([int(bbox['x_min']), int(bbox['y_min']), int(bbox['x_max']), int(bbox['y_max'])])
         sam_crop_size_x, sam_crop_size_y = self._determine_crop_size(bbox)
@@ -202,25 +245,63 @@ class SingleImageProcessor:
 
     def _get_bounding_boxes(self, bbox: dict, plant_bbox: np.ndarray, im_pad_size: int, sam_crop_size_x: int, sam_crop_size_y: int) -> Tuple[np.ndarray, np.ndarray]:
         """
-        Calculates the padded and cropped bounding boxes.
+        Calculates the bounding boxes with padding and cropping adjustments.
+
+        Args:
+            bbox (dict): Dictionary containing bounding box coordinates and other annotations.
+            plant_bbox (np.ndarray): The bounding box of the plant.
+            im_pad_size (int): The padding size added to the image.
+            sam_crop_size_x (int): The width of the crop size for SAM.
+            sam_crop_size_y (int): The height of the crop size for SAM.
+
+        Returns:
+            Tuple[np.ndarray, np.ndarray]: Padded bounding box and cropped bounding box arrays.
         """
         padded_bbox = plant_bbox + [im_pad_size, im_pad_size, im_pad_size, im_pad_size]
         cropped_bbox = padded_bbox - [bbox['center_x'] + im_pad_size - sam_crop_size_x / 2, bbox['center_y'] + im_pad_size - sam_crop_size_y / 2, bbox['center_x'] + im_pad_size - sam_crop_size_x / 2, bbox['center_y'] + im_pad_size - sam_crop_size_y / 2]
         return padded_bbox, cropped_bbox
 
-    def _crop_image(self, image, y_min, y_max, x_min, x_max):
-        cropped_image = image[y_min: y_max, x_min : x_max]
-        return cropped_image
-    
+    def _crop_image(self, image: np.ndarray, y_min: int, y_max: int, x_min: int, x_max: int) -> np.ndarray:
+        """
+        Crops the image based on the given coordinates.
+
+        Args:
+            image (np.ndarray): The image to crop.
+            y_min (int): The minimum y-coordinate for cropping.
+            y_max (int): The maximum y-coordinate for cropping.
+            x_min (int): The minimum x-coordinate for cropping.
+            x_max (int): The maximum x-coordinate for cropping.
+
+        Returns:
+            np.ndarray: The cropped image.
+        """
+        return image[y_min: y_max, x_min: x_max]
+
     def _crop_image_padded(self, image_expanded: np.ndarray, bbox: dict, im_pad_size: int, sam_crop_size_x: int, sam_crop_size_y: int) -> np.ndarray:
         """
-        Crops the image based on the annotation and padding size.
+        Crops the padded image based on the annotation and padding size.
+
+        Args:
+            image_expanded (np.ndarray): The expanded image with padding.
+            bbox (dict): Dictionary containing bounding box coordinates and other annotations.
+            im_pad_size (int): The padding size added to the image.
+            sam_crop_size_x (int): The width of the crop size for SAM.
+            sam_crop_size_y (int): The height of the crop size for SAM.
+
+        Returns:
+            np.ndarray: The cropped image with padding.
         """
         return np.copy(image_expanded[int(bbox['center_y'] + im_pad_size - sam_crop_size_y / 2):int(bbox['center_y'] + im_pad_size + sam_crop_size_y / 2), int(bbox['center_x'] + im_pad_size - sam_crop_size_x / 2):int(bbox['center_x'] + im_pad_size + sam_crop_size_x / 2), :])
 
     def _determine_crop_size(self, bbox: dict) -> Tuple[int, int]:
         """
-        Determines the appropriate crop size based on annotation dimensions.
+        Determines the appropriate crop size based on the dimensions of the bounding box.
+
+        Args:
+            bbox (dict): Dictionary containing bounding box dimensions.
+
+        Returns:
+            Tuple[int, int]: The width and height of the crop size.
         """
         sam_crop_size_x, sam_crop_size_y = 1000, 1000
         if bbox['width'] > 700:
@@ -231,7 +312,15 @@ class SingleImageProcessor:
 
     def make_exg(self, rgb_image: np.ndarray, normalize: bool = False, thresh: int = 0) -> np.ndarray:
         """
-        Calculate the excess green index (ExG) for an RGB image and apply a threshold.
+        Calculates the excess green index (ExG) for an RGB image and applies a threshold if specified.
+
+        Args:
+            rgb_image (np.ndarray): The input RGB image.
+            normalize (bool, optional): Whether to normalize the ExG values. Default is False.
+            thresh (int, optional): The threshold value to apply. Pixels with ExG values below this will be set to 0. Default is 0.
+
+        Returns:
+            np.ndarray: The computed ExG image.
         """
         rgb_image = rgb_image.astype(float)
         r, g, b = cv2.split(rgb_image)
@@ -247,126 +336,173 @@ class SingleImageProcessor:
         if thresh is not None and not normalize:
             exg = np.where(exg < thresh, 0, exg)
 
-        return exg#.astype("uint8")
-    
-    def get_hsv_from_bgr(self, bgr_list):
-        bgr_gray = np.array(bgr_list, dtype=np.uint8)
+        return exg
 
-        # Convert BGR gray color to HSV
+    def get_hsv_from_bgr(self, bgr_list: Tuple[int, int, int]) -> np.ndarray:
+        """
+        Converts a BGR color value to its corresponding HSV color value.
+
+        Args:
+            bgr_list (Tuple[int, int, int]): A tuple containing BGR color values.
+
+        Returns:
+            np.ndarray: The HSV color value corresponding to the given BGR values.
+        """
+        bgr_gray = np.array(bgr_list, dtype=np.uint8)
         hsv_gray = cv2.cvtColor(np.uint8([[bgr_gray]]), cv2.COLOR_BGR2HSV)[0][0]
         return hsv_gray
 
-    def remove_gray_hsv_color(self, hsv_image) -> np.ndarray:
-        
-        lower_gray=(0, 0, 50)
-        upper_gray=(180, 50, 200)
+    def remove_gray_hsv_color(self, hsv_image: np.ndarray) -> np.ndarray:
+        """
+        Removes gray colors from an HSV image by creating a mask that filters out gray hues.
 
-        # Create a mask for the gray color
+        Args:
+            hsv_image (np.ndarray): The input image in HSV color space.
+
+        Returns:
+            np.ndarray: A binary mask where gray colors are removed (set to 0), and all other colors are kept (set to 255).
+        """
+        lower_gray = (0, 0, 50)
+        upper_gray = (180, 50, 200)
+
+        # Create a mask for the gray color range in HSV
         mask = cv2.inRange(hsv_image, np.array(lower_gray), np.array(upper_gray))
-        # Invert the mask to keep everything except the gray color
+        
+        # Invert the mask to exclude gray colors
         mask_gray = cv2.bitwise_not(mask)
         
-        return mask_gray
-     
+        return mask_gray     
+
     def _clean_mask(self, mask: np.ndarray, cropped_image_area: np.ndarray, image_id: str, class_id: str) -> np.ndarray:
         """
-        Applies morphological opening and closing operations to clean up the mask, exg masking and gray color masking to remove large non-green components 
+        Cleans up the mask using morphological operations and filtering techniques. Removes gray colors, and applies 
+        specific post-processing based on the class ID for fine-tuning the mask.
+
+        Args:
+            mask (np.ndarray): Binary mask to be cleaned.
+            cropped_image_area (np.ndarray): Cropped image area where the mask is applied.
+            image_id (str): Identifier for the image (not used in this method but can be used for logging or debugging).
+            class_id (str): Identifier for the class of the object to determine the type of morphology to apply.
+
+        Returns:
+            np.ndarray: The cleaned mask after applying morphological operations and filtering.
         """
         log.info("Starting clean mask.")
 
-        # Broadcast the mask to have the same shape as the image
+        # Broadcast the mask to 3 channels to match the image dimensions
         mask_3d = np.repeat(mask[:, :, np.newaxis], 3, axis=2)
-        # Apply the mask to the image
+        # Apply the mask to the cropped image area
         cutout = np.where(mask_3d == 1, cropped_image_area, 0)
 
         cutout_bgr = cv2.cvtColor(cutout, cv2.COLOR_BGR2RGB)
         cutout_hsv = cv2.cvtColor(cutout_bgr, cv2.COLOR_RGB2HSV)
-        cutout_mask_gray = self.remove_gray_hsv_color(cutout_hsv).astype(np.uint8) #removing gray background from the image 
-        combined_cutout_mask = np.where(cutout_mask_gray == 255, mask, 1)
+        cutout_mask_gray = self.remove_gray_hsv_color(cutout_hsv).astype(np.uint8)  # Remove gray background
 
+        combined_cutout_mask = np.where(cutout_mask_gray == 255, mask, 1)
         cutout_mask_gray_3d = np.repeat(cutout_mask_gray[:, :, np.newaxis], 3, axis=2)
 
-        #clean sparse uses CUTOUT. create a new cutout_gray_removed after masking the cutout_mask_gray. Then use it in that method
-        cutout_gray_removed_bgr = np.where(cutout_mask_gray_3d == 255, cutout, 1) #### make sure this color 255/1 selection doesn't effect your final cutout
+        # Remove gray areas from the cutout
+        cutout_gray_removed_bgr = np.where(cutout_mask_gray_3d == 255, cutout, 1)
         cutout_gray_removed_rgb = cv2.cvtColor(cutout_gray_removed_bgr, cv2.COLOR_BGR2RGB)
 
-        # Apply different post processing methods for broad and sparse morphology
+        # Apply post-processing based on class ID
         if class_id in [item["class_id"] for item in self.broad_sprase_morph_species['sparse_morphology']]:
-            # Apply exg (this is good for ragweed parthenium but not for cocklebur)
-            log.info(f"Working with sparse morphology, class_id:{class_id}")
+            log.info(f"Working with sparse morphology, class_id: {class_id}")
             cleaned_mask = self._clean_sparse(cutout_gray_removed_rgb)
-            
         elif class_id in [item["class_id"] for item in self.broad_sprase_morph_species['broad_morphology']]:
             cleaned_mask = self._clean_broad(class_id, combined_cutout_mask)
-
         else:
-            log.error(f"class_id:{class_id} not defined in broad_sprase_morph_species")
+            log.error(f"class_id: {class_id} not defined in broad_sprase_morph_species")
+            cleaned_mask = np.zeros_like(mask)  # Return an empty mask if class_id is not defined
 
         return cleaned_mask
 
-    def _clean_sparse(self, cutout_gray_removed_rgb: np.ndarray):
+    def _clean_sparse(self, cutout_gray_removed_rgb: np.ndarray) -> np.ndarray:
+        """
+        Cleans up the mask for sparse morphology using ExG (Excess Green) filtering and morphological operations.
 
+        Args:
+            cutout_gray_removed_rgb (np.ndarray): Image with gray colors removed and converted to RGB.
 
-
-        # checkout method save_cutout for gray removal
-
-
-
-        # Exg masking
+        Returns:
+            np.ndarray: The cleaned mask after applying ExG filtering and morphological operations.
+        """
+        # Calculate ExG (Excess Green) index and create a mask
         exg_image = self.make_exg(cutout_gray_removed_rgb)
         exg_mask = np.where(exg_image > 0, 1, 0).astype(np.uint8)
         
-        # Broadcast the mask to have the same shape as the image
+        # Broadcast the mask to match the image dimensions
         exg_mask_3d = np.repeat(exg_mask[:, :, np.newaxis], 3, axis=2)
-        # Apply the mask to the image
+        # Apply the ExG mask to the image
         cutout_exg = np.where(exg_mask_3d == 1, cutout_gray_removed_rgb, 0)
 
-        # # Gray masking
-        # cutout_exg_hsv = cv2.cvtColor(cutout_exg, cv2.COLOR_RGB2HSV)
-        # cutout_gray_mask = self.remove_gray_hsv_color(cutout_exg_hsv) ### This is not working for the final image. It should be similar to exg_mask
-
-
-        # Apply morphological closing and opening
+        # Apply morphological operations to clean up the mask
         cleaned_mask = remove_small_holes(exg_mask.astype(bool), area_threshold=100, connectivity=2).astype(np.uint8)
         cleaned_mask = remove_small_objects(cleaned_mask.astype(bool), min_size=100, connectivity=2).astype(np.uint8)
-
         cleaned_mask = cv2.GaussianBlur(cleaned_mask, (7, 7), sigmaX=1)
-        kernel = np.ones((3, 3), np.uint8)  # Default kernel size, assuming 5x5
-
+        kernel = np.ones((3, 3), np.uint8)
         cleaned_mask = cv2.morphologyEx(cleaned_mask, cv2.MORPH_CLOSE, kernel)
         cleaned_mask = cv2.morphologyEx(cleaned_mask, cv2.MORPH_OPEN, kernel)
+
         return cleaned_mask
 
-    def _clean_broad(self, class_id, combined_cutout_mask: np.ndarray):
-        # Apply morphological closing and opening
+    def _clean_broad(self, class_id: str, combined_cutout_mask: np.ndarray) -> np.ndarray:
+        """
+        Cleans up the mask for broad morphology using morphological operations.
+
+        Args:
+            class_id (str): Identifier for the class of the object (not used directly but for context).
+            combined_cutout_mask (np.ndarray): Combined mask to be cleaned.
+
+        Returns:
+            np.ndarray: The cleaned mask after applying morphological operations.
+        """
+        # Apply morphological operations to clean up the mask
         cleaned_mask = remove_small_holes(combined_cutout_mask.astype(bool), area_threshold=10).astype(np.uint8)
         cleaned_mask = remove_small_objects(cleaned_mask.astype(bool), min_size=100, connectivity=2).astype(np.uint8)
-
         cleaned_mask = cv2.GaussianBlur(cleaned_mask, (7, 7), sigmaX=1)
-        kernel = np.ones((3, 3), np.uint8)  # Default kernel size, assuming 5x5
-
+        kernel = np.ones((3, 3), np.uint8)
         cleaned_mask = cv2.morphologyEx(cleaned_mask, cv2.MORPH_CLOSE, kernel)
         cleaned_mask = cv2.morphologyEx(cleaned_mask, cv2.MORPH_OPEN, kernel)
+
         return cleaned_mask
-            
+
     def _apply_masks(self, masks: torch.Tensor, masked_image_rgba: np.ndarray, class_masked_image: np.ndarray, bbox: dict, im_pad_size: int, sam_crop_size_x: int, sam_crop_size_y: int):
         """
-        Applies the generated masks to the respective mask images. _clean_mask is executed here.
+        Applies generated masks to the respective images and updates the mask images. Utilizes _clean_mask to refine the masks.
+
+        Args:
+            masks (torch.Tensor): Tensor of masks predicted by the model.
+            masked_image_rgba (np.ndarray): Image with initial masking applied.
+            class_masked_image (np.ndarray): Image to store class-specific mask information.
+            bbox (dict): Bounding box information including coordinates and image ID.
+            im_pad_size (int): Padding size used for cropping.
+            sam_crop_size_x (int): Width of the cropped region.
+            sam_crop_size_y (int): Height of the cropped region.
         """
-        bb_color = tuple(np.random.random(size=3) * 255)
+        bb_color = tuple(np.random.random(size=3) * 255)  # Random color for bounding box visualization
+
         for mask in masks:
+            # Create an empty mask for the full image
             full_mask = np.zeros(masked_image_rgba.shape[0:2])
+
+            # Define cropping coordinates
             crop_start_y = int(bbox['center_y'] + im_pad_size - sam_crop_size_y / 2)
             crop_end_y = int(bbox['center_y'] + im_pad_size + sam_crop_size_y / 2)
             crop_start_x = int(bbox['center_x'] + im_pad_size - sam_crop_size_x / 2)
             crop_end_x = int(bbox['center_x'] + im_pad_size + sam_crop_size_x / 2)
+
+            # Apply the mask to the cropped region
             full_mask[crop_start_y:crop_end_y, crop_start_x:crop_end_x] = mask.cpu()[0, :, :]
 
             cropped_image_area = masked_image_rgba[crop_start_y:crop_end_y, crop_start_x:crop_end_x, :3]
             cropped_mask = full_mask[crop_start_y:crop_end_y, crop_start_x:crop_end_x]
 
+            # Clean the cropped mask
             cleaned_cropped_mask = self._clean_mask(cropped_mask, cropped_image_area, bbox["image_id"], bbox["class_id"])
-            full_mask[crop_start_y:crop_end_y, crop_start_x:crop_end_x] = cleaned_cropped_mask # applied cleaned mask (from _clean_mask to the full mask) 
+            full_mask[crop_start_y:crop_end_y, crop_start_x:crop_end_x] = cleaned_cropped_mask
+
+            # Update the image with the cleaned mask
             alpha = 0.5
             for c in range(3):
                 masked_image_rgba[full_mask == 1, c] = (1 - alpha) * masked_image_rgba[full_mask == 1, c] + alpha * bb_color[c]
