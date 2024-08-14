@@ -19,12 +19,19 @@ class ImageLoader:
     """
     A class for loading images from a given directory.
     """
-
     def __init__(self, image_dir: Path):
         self.image_dir = image_dir
 
     def read_image(self, image_path: str) -> Optional[np.ndarray]:
-        """Reads an image from the specified path and converts it to an RGB numpy array."""
+        """
+        This function reads the image from the given path.
+
+        Parameters:
+            image_path (str): Path to the image file.
+
+        Returns:
+            np.ndarray: Image as a numpy array.
+        """
         try:
             log.info(f"Reading image from {image_path}.")
             image = cv2.cvtColor(cv2.imread(str(image_path)), cv2.COLOR_BGR2RGB)
@@ -33,13 +40,21 @@ class ImageLoader:
             log.error(f"Failed to read image {image_path}: {e}", exc_info=True)
             return None
 
-
 class WeedDetector:
     """
     A class for detecting weeds in images using YOLOv5.
     """
 
-    def __init__(self, model_path: str):
+    def __init__(self, model_path: str) -> None:
+        """
+        Initializes the WeedDetector class.
+        
+        Parameters: 
+            model_path (str): Path to the YOLOv5 model.
+
+        Returns:
+            None
+        """
         self.model = YOLO(model_path)
 
     def detect_weeds(self, image: np.ndarray) -> Optional[Dict[str, Dict[str, int]]]:

@@ -25,9 +25,19 @@ log = logging.getLogger(__name__)
 device = "cuda"
 
 class SingleImageProcessor:
-    def __init__(self, cfg: DictConfig, output_dir: str, metadata_dir: str, model_type: str, sam_checkpoint: str):
+    def __init__(self, cfg: DictConfig, output_dir: str, metadata_dir: str, model_type: str, sam_checkpoint: str) -> None:
         """
-        Initializes the SingleImageProcessor with image and JSON paths, and model details.
+        Initialize the SingleImageProcessor with the configuration and output directories.
+
+        Parameters:
+            cfg (DictConfig): The configuration object.
+            output_dir (str): The directory where the output files will be saved.
+            metadata_dir (str): The directory where the metadata files are stored.
+            model_type (str): The type of model to use for segmentation.
+            sam_checkpoint (str): The path to the SAM model checkpoint.
+
+        Returns:
+            None
         """
         log.info("Initializing SingleImageProcessor")
         self.metadata_dir = Path(metadata_dir)
@@ -45,12 +55,15 @@ class SingleImageProcessor:
         sam.to(device=device)
         self.mask_predictor = SamPredictor(sam)
 
-    def process_image(self, input_paths: Tuple[str, str]):
+    def process_image(self, input_paths: Tuple[str, str]) -> Tuple[dict, dict]:
         """
         Processes an image and its corresponding JSON annotations.
 
-        Args:
+        Parameters:
             input_paths (Tuple[str, str]): Paths to the image and JSON file.
+
+        Returns:
+            Tuple[dict, dict]: Tuple containing the JSON data and the extracted bounding box information
         """
         image_path, json_path = input_paths
         log.info(f"Processing image: {image_path}")
@@ -74,12 +87,15 @@ class SingleImageProcessor:
             log.error(f"No JSON file found for {json_path}")
             return None
 
-    def save_cutout(self, input_paths: Tuple[str, str]):
+    def save_cutout(self, input_paths: Tuple[str, str]) -> None:
         """
         Saves the final cutout, cropped image, and mask after removing the gray mat.
 
-        Args:
+        Parameters:
             input_paths (Tuple[str, str]): Paths to the input image and JSON file.
+        
+        Returns:
+            None
         """
         log.info("Starting process to remove gray mat and save cropout, final mask, and cutout.")
         
@@ -127,14 +143,17 @@ class SingleImageProcessor:
         cv2.imwrite(str(save_class_dir / cutout_name), final_cutout_rgb.astype(np.uint8), [cv2.IMWRITE_PNG_COMPRESSION, 1])
         log.info(f"Final cutout saved as: {cutout_name}")
 
-    def save_compressed_image(self, image: np.ndarray, path: str, quality: int = 98):
+    def save_compressed_image(self, image: np.ndarray, path: str, quality: int = 98) -> None:
         """
         Save the image in a compressed JPEG format.
 
-        Args:
+        Parameters:
             image (np.ndarray): The image to save, expected in RGB format.
             path (str): The file path where the image will be saved.
             quality (int, optional): The quality of the JPEG compression (0 to 100). Default is 98.
+        
+        Returns:
+            None
         """
         image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
         is_success, encoded_image = cv2.imencode(".jpg", image, [int(cv2.IMWRITE_JPEG_QUALITY), quality])
@@ -142,13 +161,16 @@ class SingleImageProcessor:
             with open(path, 'wb') as f:
                 encoded_image.tofile(f)
 
-    def _find_bbox_center(self, bbox: dict):
+    def _find_bbox_center(self, bbox: dict) -> None:
         """
         Calculate and add the center coordinates of the bounding box to the dictionary.
 
-        Args:
+        Parameters:
             bbox (dict): Dictionary containing bounding box coordinates with keys 
                         'x_min', 'x_max', 'y_min', and 'y_max'.
+                    
+        Returns:
+            None
         """
         bbox['center_x'] = (bbox['x_min'] + bbox['x_max']) / 2
         bbox['center_y'] = (bbox['y_min'] + bbox['y_max']) / 2
@@ -157,7 +179,7 @@ class SingleImageProcessor:
         """
         Read an image from a specified path and convert it to RGB format.
 
-        Args:
+        Parameters:
             image_path (Path): Path to the image file.
 
         Returns:
@@ -170,7 +192,7 @@ class SingleImageProcessor:
         """
         Create masked images based on the given bounding box annotations.
 
-        Args:
+        Parameters:
             image (np.ndarray): The input image in RGB format.
             bbox (dict): Dictionary containing bounding box coordinates and other annotations.
 
@@ -192,14 +214,17 @@ class SingleImageProcessor:
 
         return masked_image_rgba[im_pad_size:-im_pad_size, im_pad_size:-im_pad_size, :], class_masked_image[im_pad_size:-im_pad_size, im_pad_size:-im_pad_size]
 
-    def _get_bbox_area(self, bbox: dict, im_size_X: int, im_size_Y: int):
+    def _get_bbox_area(self, bbox: dict, im_size_X: int, im_size_Y: int) -> None:
         """
         Update the bounding box dictionary with the area of the bounding box.
 
-        Args:
+        Parameters:
             bbox (dict): Dictionary containing bounding box coordinates.
             im_size_X (int): Width of the image.
             im_size_Y (int): Height of the image.
+
+        Returns:
+            None
         """
         bbox['bbox_area'] = bbox['width'] * bbox['height']
 
@@ -207,7 +232,7 @@ class SingleImageProcessor:
         """
         Calculate the coordinates of the bounding box after adding padding.
 
-        Args:
+        Parameters:
             bbox (dict): Dictionary containing bounding box coordinates.
             im_pad_size (int): The amount of padding added to the image.
 
@@ -217,16 +242,19 @@ class SingleImageProcessor:
         x_min, y_min, x_max, y_max = bbox["x_min"], bbox["y_min"], bbox["x_max"], bbox["y_max"]
         return np.array([x_min + im_pad_size, y_min + im_pad_size, x_max + im_pad_size, y_max + im_pad_size])
         
-    def _process_annotation(self, bbox: dict, image_expanded: np.ndarray, masked_image_rgba: np.ndarray, class_masked_image: np.ndarray, im_pad_size: int):
+    def _process_annotation(self, bbox: dict, image_expanded: np.ndarray, masked_image_rgba: np.ndarray, class_masked_image: np.ndarray, im_pad_size: int) -> None:
         """
         Processes a single annotation to update the mask images using the SAM predictor.
 
-        Args:
+        Parameters:
             bbox (dict): Dictionary containing bounding box coordinates and other annotations.
             image_expanded (np.ndarray): The expanded image with padding.
             masked_image_rgba (np.ndarray): The masked image with RGBA channels.
             class_masked_image (np.ndarray): The class mask image (binary mask).
             im_pad_size (int): The padding size added to the image.
+
+        Returns:
+            None
         """
         plant_bbox = np.array([int(bbox['x_min']), int(bbox['y_min']), int(bbox['x_max']), int(bbox['y_max'])])
         sam_crop_size_x, sam_crop_size_y = self._determine_crop_size(bbox)
@@ -247,7 +275,7 @@ class SingleImageProcessor:
         """
         Calculates the bounding boxes with padding and cropping adjustments.
 
-        Args:
+        Parameters:
             bbox (dict): Dictionary containing bounding box coordinates and other annotations.
             plant_bbox (np.ndarray): The bounding box of the plant.
             im_pad_size (int): The padding size added to the image.
@@ -265,7 +293,7 @@ class SingleImageProcessor:
         """
         Crops the image based on the given coordinates.
 
-        Args:
+        Parameters:
             image (np.ndarray): The image to crop.
             y_min (int): The minimum y-coordinate for cropping.
             y_max (int): The maximum y-coordinate for cropping.
@@ -281,7 +309,7 @@ class SingleImageProcessor:
         """
         Crops the padded image based on the annotation and padding size.
 
-        Args:
+        Parameters:
             image_expanded (np.ndarray): The expanded image with padding.
             bbox (dict): Dictionary containing bounding box coordinates and other annotations.
             im_pad_size (int): The padding size added to the image.
@@ -297,7 +325,7 @@ class SingleImageProcessor:
         """
         Determines the appropriate crop size based on the dimensions of the bounding box.
 
-        Args:
+        Parameters:
             bbox (dict): Dictionary containing bounding box dimensions.
 
         Returns:
@@ -314,7 +342,7 @@ class SingleImageProcessor:
         """
         Calculates the excess green index (ExG) for an RGB image and applies a threshold if specified.
 
-        Args:
+        Parameters:
             rgb_image (np.ndarray): The input RGB image.
             normalize (bool, optional): Whether to normalize the ExG values. Default is False.
             thresh (int, optional): The threshold value to apply. Pixels with ExG values below this will be set to 0. Default is 0.
@@ -342,7 +370,7 @@ class SingleImageProcessor:
         """
         Converts a BGR color value to its corresponding HSV color value.
 
-        Args:
+        Parameters:
             bgr_list (Tuple[int, int, int]): A tuple containing BGR color values.
 
         Returns:
@@ -356,7 +384,7 @@ class SingleImageProcessor:
         """
         Removes gray colors from an HSV image by creating a mask that filters out gray hues.
 
-        Args:
+        Parameters:
             hsv_image (np.ndarray): The input image in HSV color space.
 
         Returns:
@@ -378,7 +406,7 @@ class SingleImageProcessor:
         Cleans up the mask using morphological operations and filtering techniques. Removes gray colors, and applies 
         specific post-processing based on the class ID for fine-tuning the mask.
 
-        Args:
+        Parameters:
             mask (np.ndarray): Binary mask to be cleaned.
             cropped_image_area (np.ndarray): Cropped image area where the mask is applied.
             image_id (str): Identifier for the image (not used in this method but can be used for logging or debugging).
@@ -421,7 +449,7 @@ class SingleImageProcessor:
         """
         Cleans up the mask for sparse morphology using ExG (Excess Green) filtering and morphological operations.
 
-        Args:
+        Parameters:
             cutout_gray_removed_rgb (np.ndarray): Image with gray colors removed and converted to RGB.
 
         Returns:
@@ -450,7 +478,7 @@ class SingleImageProcessor:
         """
         Cleans up the mask for broad morphology using morphological operations.
 
-        Args:
+        Parameters:
             class_id (str): Identifier for the class of the object (not used directly but for context).
             combined_cutout_mask (np.ndarray): Combined mask to be cleaned.
 
@@ -467,11 +495,11 @@ class SingleImageProcessor:
 
         return cleaned_mask
 
-    def _apply_masks(self, masks: torch.Tensor, masked_image_rgba: np.ndarray, class_masked_image: np.ndarray, bbox: dict, im_pad_size: int, sam_crop_size_x: int, sam_crop_size_y: int):
+    def _apply_masks(self, masks: torch.Tensor, masked_image_rgba: np.ndarray, class_masked_image: np.ndarray, bbox: dict, im_pad_size: int, sam_crop_size_x: int, sam_crop_size_y: int) -> None:
         """
         Applies generated masks to the respective images and updates the mask images. Utilizes _clean_mask to refine the masks.
 
-        Args:
+        Parameters:
             masks (torch.Tensor): Tensor of masks predicted by the model.
             masked_image_rgba (np.ndarray): Image with initial masking applied.
             class_masked_image (np.ndarray): Image to store class-specific mask information.
@@ -479,6 +507,9 @@ class SingleImageProcessor:
             im_pad_size (int): Padding size used for cropping.
             sam_crop_size_x (int): Width of the cropped region.
             sam_crop_size_y (int): Height of the cropped region.
+
+        Returns:
+            None
         """
         bb_color = tuple(np.random.random(size=3) * 255)  # Random color for bounding box visualization
 
@@ -510,9 +541,15 @@ class SingleImageProcessor:
             class_masked_image[full_mask == 1] = bbox['class_id']
 
 class DirectoryInitializer:
-    def __init__(self, cfg: DictConfig):
+    def __init__(self, cfg: DictConfig) -> None:
         """
-        Initialize directory structure based on the configuration.
+        The DirectoryInitializer class initializes
+
+        Parameters:
+            cfg (DictConfig): The configuration object.
+
+        Returns:
+            None
         """
         self.image_dir = Path(cfg.data.temp_image_dir)
         self.metadata_dir = Path(cfg.data.image_metadata_dir)
@@ -521,13 +558,23 @@ class DirectoryInitializer:
 
     def get_images(self) -> List[Path]:
         """
-        Get a list of image paths from the image directory.
+        Get the list of images from the image directory.
+
+        Returns:
+            List[Path]: List of image paths.
         """
         return sorted([x for x in self.image_dir.glob("*.JPG")])
 
-def process_sequentially(directory_initializer: DirectoryInitializer, processor: SingleImageProcessor):
+def process_sequentially(directory_initializer: DirectoryInitializer, processor: SingleImageProcessor) -> None:
     """
-    Process a batch of images sequentially.
+    This function processes a batch of images sequentially.
+
+    Parameters:
+        directory_initializer (DirectoryInitializer): The DirectoryInitializer object.
+        processor (SingleImageProcessor): The SingleImageProcessor object.
+
+    Returns:
+        None
     """
     imgs = directory_initializer.get_images()
     for image_path in imgs:
@@ -537,9 +584,16 @@ def process_sequentially(directory_initializer: DirectoryInitializer, processor:
         # processor.process_image(input_paths)
         processor.save_cutout(input_paths)
 
-def process_concurrently(directory_initializer: DirectoryInitializer, processor: SingleImageProcessor):
+def process_concurrently(directory_initializer: DirectoryInitializer, processor: SingleImageProcessor) -> None:
     """
-    Process a batch of images using multiprocessing.
+    This function processes a batch of images concurrently using multiprocessing.
+
+    Parameters:
+        directory_initializer (DirectoryInitializer): The DirectoryInitializer object.
+        processor (SingleImageProcessor): The SingleImageProcessor object.
+
+    Returns:
+        None
     """
     imgs = directory_initializer.get_images()
     input_paths = [
@@ -554,7 +608,15 @@ def process_concurrently(directory_initializer: DirectoryInitializer, processor:
         executor.map(processor.save_cutout, input_paths)
 
 def main(cfg: DictConfig) -> None:
-    """Main function to process a batch of images, either sequentially or concurrently."""
+    """
+    The main function to process a batch of images using the SingleImageProcessor.
+    
+    Parameters:
+        cfg (DictConfig): The configuration object.
+
+    Returns:
+        None
+    """
     log.info("Starting batch processing")
     directory_initializer = DirectoryInitializer(cfg)
     imgs = directory_initializer.get_images()
