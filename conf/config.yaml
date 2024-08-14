@@ -9,10 +9,8 @@ hydra:
   output_subdir: ${hydra.run.dir}/hydra
 
 pipeline:
-  # - detect_weeds
+  - detect_weeds
   - segment_weeds
-  # - detect_segment_weeds # og script
-  
 
 general:
   task: # Leave empty as placeholder

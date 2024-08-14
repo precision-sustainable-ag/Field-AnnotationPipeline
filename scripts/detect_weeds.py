@@ -36,7 +36,7 @@ class ImageLoader:
 
 class WeedDetector:
     """
-    A class for detecting weeds using a YOLO model.
+    A class for detecting weeds in images using YOLOv5.
     """
 
     def __init__(self, model_path: str):
@@ -87,7 +87,16 @@ class ImageProcessor:
 
     @staticmethod
     def crop_image(image: np.ndarray, bbox: Dict[str, int]) -> Optional[np.ndarray]:
-        """Crops the detected region from the image based on the bounding box."""
+        """
+        This function crops the detected region from the image based on the bounding box.
+
+        Parameters:
+            image (np.ndarray): Image as a numpy array.
+            bbox (dict): Bounding box coordinates.
+
+        Returns:  
+            np.ndarray: Cropped image.
+        """
         try:
             x_min, y_min, x_max, y_max = bbox["x_min"], bbox["y_min"], bbox["x_max"], bbox["y_max"]
             cropout_image = image[y_min:y_max, x_min:x_max]
@@ -99,7 +108,16 @@ class ImageProcessor:
 
     @staticmethod
     def save_image(image: np.ndarray, image_path: Path) -> None:
-        """Saves the image to the specified path."""
+        """
+        Saves the image to the specified path.
+        
+        Parameters:
+            image (np.ndarray): Image as a numpy array.
+            image_path (Path): Path to save the image.
+
+        Returns:
+            None
+        """
         try:
             image_bgr = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
             cv2.imwrite(str(image_path), image_bgr, [int(cv2.IMWRITE_JPEG_QUALITY), 100])
@@ -115,11 +133,13 @@ class MetadataExtractor:
 
     def __init__(self, cfg: DictConfig):
         """
-        Initializes the metadata extractor.
+        This function initializes the metadata extractor.
 
         Parameters:
-            csv_path (str): Path to the CSV file containing metadata.
-            field_species_name_path (str): Path to the field species info JSON file.
+            cfg (DictConfig): Configuration object containing the paths to the data files.
+        
+        Returns:
+            None
         """
         self.csv_path = cfg.data.merged_tables_permanent
         self.field_species_name_path = cfg.data.field_species_name
@@ -138,7 +158,13 @@ class MetadataExtractor:
 
     def get_class_id(self, image_name: str) -> Optional[str]:
         """
-        Gets the class ID using the image name.
+        This function extracts the class ID from the image name.
+
+        Parameters:
+            image_name (str): Name of the image.
+
+        Returns:
+            str: Class ID of the species if found; otherwise, returns None.
         """
         log.info("Loading image data.")
         species_series = self.df[self.df["Name"] == image_name]["Species"]
@@ -153,7 +179,15 @@ class MetadataExtractor:
 
     @staticmethod
     def get_exif_data(image_path: str) -> dict:
-        """Extracts EXIF data from the image."""
+        """
+        This function extracts EXIF data from the image.
+        
+        Parameters:
+            image_path (str): Path to the image file.
+        
+        Returns:
+            dict: Extracted EXIF data.
+        """
         
         try:
             log.info("Extracting EXIF data from the image.")
@@ -174,12 +208,16 @@ class MetadataExtractor:
 
     def save_image_metadata(self, image_path: str, detection_results: dict, output_dir: Path, exif_data: dict) -> None:
         """
-        Generates and saves image metadata.
-
+        This function saves the metadata extracted from the image.
+        
         Parameters:
             image_path (str): Path to the image file.
-            detection_results (dict): Detection results including bbox.
-            output_dir (Path): Directory to save the metadata JSON.
+            detection_results (dict): Detection results.
+            output_dir (Path): Directory to save the metadata.
+            exif_data (dict): Extracted EXIF data.
+
+        Returns:
+            None
         """
         try:
             log.info("Extracting metadata")
@@ -230,13 +268,13 @@ class MetadataExtractor:
     @staticmethod
     def _custom_decoder(data: dict) -> dict:
         """
-        Custom decoder to handle NaN values.
+        This function replaces NaN values with None in the dictionary.
 
         Parameters:
-            data (dict): Dictionary to decode.
+            data (dict): Dictionary to modify.
 
         Returns:
-            dict: Decoded dictionary.
+            dict: Modified dictionary.
         """
         for key, value in data.items():
             if isinstance(value, float) and math.isnan(value):
@@ -248,7 +286,7 @@ class MetadataExtractor:
     @staticmethod
     def _replace_en_dash(data: dict) -> dict:
         """
-        Replace en dash with hyphen in string values.
+        This function replaces en dash with hyphen in the dictionary.
 
         Parameters:
             data (dict): Dictionary to modify.
@@ -271,10 +309,13 @@ class ProcessDetections:
 
     def __init__(self, cfg: DictConfig):
         """
-        Initializes directories and components for the weed detection process.
+        Initializes the ProcessDetections class.
 
         Parameters:
-            cfg (DictConfig): Configuration object containing directory paths and model details.
+            cfg (DictConfig): Configuration object containing the paths to the data files.
+
+        Returns:    
+            None
         """
         self.output_dir = Path(cfg.data.temp_output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
@@ -287,10 +328,13 @@ class ProcessDetections:
 
     def process_image(self, image_path: Path) -> None:
         """
-        Processes a single image: detects weeds, crops the image, and extracts metadata.
+        THis function processes the image by detecting weeds and saving the metadata.
 
         Parameters:
             image_path (Path): Path to the image file.
+
+        Returns:
+            None
         """
         try:
             image = self.image_loader.read_image(image_path)
@@ -307,14 +351,6 @@ class ProcessDetections:
             if detection_results is None:
                 return
             
-            cropout_dir = Path(self.output_dir, "cropout")
-            cropout_dir.mkdir(exist_ok=True, parents=True)
-
-            cropout_image = self.image_processor.crop_image(image, detection_results['bbox'])
-            if cropout_image is not None:
-                cropout_image_path = cropout_dir / f"{image_path.stem}_cropout.jpg"
-                self.image_processor.save_image(cropout_image, cropout_image_path)
-
             exif_data = self.metadata_extractor.get_exif_data(str(image_path))
             self.metadata_extractor.save_image_metadata(str(image_path), detection_results, self.image_metadata_dir, exif_data)
 
@@ -323,7 +359,10 @@ class ProcessDetections:
 
     def process_all_images(self) -> None:
         """
-        Processes all images in the directory specified in the configuration.
+        This function processes all images in the specified directory.
+
+        Returns:
+            None
         """
         for image_path in self.image_loader.image_dir.iterdir():
             if image_path.suffix.lower() in {".jpg", ".jpeg", ".png", ".JPG", ".JPEG"}:
@@ -332,10 +371,13 @@ class ProcessDetections:
 
 def main(cfg: DictConfig) -> None:
     """
-    Main function to start the weed detection task.
+    Main function to start the weed detection process.
 
     Parameters:
-        cfg (DictConfig): Configuration object containing the task details.
+        cfg (DictConfig): Configuration object containing the paths to the data files.
+
+    Returns:
+        None
     """
     log.info(f"Starting {cfg.general.task}")
     process_weeds = ProcessDetections(cfg)
