@@ -89,7 +89,7 @@ class SingleImageProcessor:
 
     def save_cutout(self, input_paths: Tuple[str, str]) -> None:
         """
-        Saves the final cutout, cropped image, and mask after removing the gray mat.
+        Saves the final cutout, cropped image, and mask.
 
         Parameters:
             input_paths (Tuple[str, str]): Paths to the input image and JSON file.
@@ -97,7 +97,7 @@ class SingleImageProcessor:
         Returns:
             None
         """
-        log.info("Starting process to remove gray mat and save cropout, final mask, and cutout.")
+        log.info("Starting process to save cropout, final mask, and cutout.")
         
         # Process image to get bounding box and data
         data, bbox = self.process_image(input_paths)
@@ -390,8 +390,9 @@ class SingleImageProcessor:
         Returns:
             np.ndarray: A binary mask where gray colors are removed (set to 0), and all other colors are kept (set to 255).
         """
-        lower_gray = (0, 0, 50)
-        upper_gray = (180, 50, 200)
+        # Define the lower and upper bounds for gray colors in HSV.
+        lower_gray = (0, 0, 50) # Lower hsv for gray color
+        upper_gray = (180, 50, 200) # Upper hsv for gray color #This working better
 
         # Create a mask for the gray color range in HSV
         mask = cv2.inRange(hsv_image, np.array(lower_gray), np.array(upper_gray))
@@ -467,11 +468,10 @@ class SingleImageProcessor:
         # Apply morphological operations to clean up the mask
         cleaned_mask = remove_small_holes(exg_mask.astype(bool), area_threshold=100, connectivity=2).astype(np.uint8)
         cleaned_mask = remove_small_objects(cleaned_mask.astype(bool), min_size=100, connectivity=2).astype(np.uint8)
-        cleaned_mask = cv2.GaussianBlur(cleaned_mask, (7, 7), sigmaX=1)
         kernel = np.ones((3, 3), np.uint8)
         cleaned_mask = cv2.morphologyEx(cleaned_mask, cv2.MORPH_CLOSE, kernel)
         cleaned_mask = cv2.morphologyEx(cleaned_mask, cv2.MORPH_OPEN, kernel)
-
+        cleaned_mask = cv2.GaussianBlur(cleaned_mask, (7, 7), sigmaX=1)
         return cleaned_mask
 
     def _clean_broad(self, class_id: str, combined_cutout_mask: np.ndarray) -> np.ndarray:
@@ -488,11 +488,10 @@ class SingleImageProcessor:
         # Apply morphological operations to clean up the mask
         cleaned_mask = remove_small_holes(combined_cutout_mask.astype(bool), area_threshold=10).astype(np.uint8)
         cleaned_mask = remove_small_objects(cleaned_mask.astype(bool), min_size=100, connectivity=2).astype(np.uint8)
-        cleaned_mask = cv2.GaussianBlur(cleaned_mask, (7, 7), sigmaX=1)
         kernel = np.ones((3, 3), np.uint8)
         cleaned_mask = cv2.morphologyEx(cleaned_mask, cv2.MORPH_CLOSE, kernel)
         cleaned_mask = cv2.morphologyEx(cleaned_mask, cv2.MORPH_OPEN, kernel)
-
+        cleaned_mask = cv2.GaussianBlur(cleaned_mask, (7, 7), sigmaX=1)
         return cleaned_mask
 
     def _apply_masks(self, masks: torch.Tensor, masked_image_rgba: np.ndarray, class_masked_image: np.ndarray, bbox: dict, im_pad_size: int, sam_crop_size_x: int, sam_crop_size_y: int) -> None:
