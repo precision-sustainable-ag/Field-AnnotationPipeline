@@ -427,7 +427,7 @@ class SingleImageProcessor:
         cutout_hsv = cv2.cvtColor(cutout_bgr, cv2.COLOR_RGB2HSV)
         cutout_mask_gray = self.remove_gray_hsv_color(cutout_hsv).astype(np.uint8)  # Remove gray background
 
-        combined_cutout_mask = np.where(cutout_mask_gray == 255, mask, 1)
+        combined_cutout_mask = np.where(cutout_mask_gray == 255, mask, 0)
         cutout_mask_gray_3d = np.repeat(cutout_mask_gray[:, :, np.newaxis], 3, axis=2)
 
         # Remove gray areas from the cutout
