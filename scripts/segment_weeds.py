@@ -391,8 +391,8 @@ class SingleImageProcessor:
             np.ndarray: A binary mask where gray colors are removed (set to 0), and all other colors are kept (set to 255).
         """
         # Define the lower and upper bounds for gray colors in HSV.
-        lower_gray = (0, 0, 50) # Lower hsv for gray color
-        upper_gray = (180, 50, 200) # Upper hsv for gray color #This working better
+        lower_gray = (0, 0, 0) # Lower hsv for gray color
+        upper_gray = (180, 85, 255) # Upper hsv for gray color #This working better
 
         # Create a mask for the gray color range in HSV
         mask = cv2.inRange(hsv_image, np.array(lower_gray), np.array(upper_gray))
