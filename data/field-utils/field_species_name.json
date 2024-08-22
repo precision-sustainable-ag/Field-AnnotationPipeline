@@ -1,0 +1,257 @@
+[
+    {
+        "common_name": "background",
+        "usda_symbol": "background",
+        "class_id": 0
+    },
+    {
+        "common_name": "Palmer amaranth",
+        "usda_symbol": "AMPA",
+        "class_id": 1
+    },
+    {
+        "common_name": "Common ragweed",
+        "usda_symbol": "AMAR2",
+        "class_id": 2
+    },
+    {
+        "common_name": "Sicklepod",
+        "usda_symbol": "SEOB4",
+        "class_id": 3
+    },
+    {
+        "common_name": "Cocklebur",
+        "usda_symbol": "XAST",
+        "class_id": 4
+    },
+    {
+        "common_name": "Common Cocklebur",
+        "usda_symbol": "XAST",
+        "class_id": 4
+    },
+    {
+        "common_name": "Large crabgrass",
+        "usda_symbol": "DISA",
+        "class_id": 5
+    },
+    {
+        "common_name": "Goosegrass",
+        "usda_symbol": "ELIN3",
+        "class_id": 6
+    },
+    {
+        "common_name": "Broadleaf signalgrass",
+        "usda_symbol": "URPL2",
+        "class_id": 7
+    },
+    {
+        "common_name": "Purple nutsedge",
+        "usda_symbol": "CYRO",
+        "class_id": 8
+    },
+    {
+        "common_name": "Waterhemp",
+        "usda_symbol": "AMTU",
+        "class_id": 9
+    },
+    {
+        "common_name": "Common Waterhemp",
+        "usda_symbol": "AMTU",
+        "class_id": 9
+    },
+    {
+        "common_name": "Barnyardgrass",
+        "usda_symbol": "ECCR",
+        "class_id": 10
+    },
+    {
+        "common_name": "Jungle rice",
+        "usda_symbol": "ECCO2",
+        "class_id": 11
+    },
+    {
+        "common_name": "Texas millet",
+        "usda_symbol": "URTE2",
+        "class_id": 12
+    },
+    {
+        "common_name": "Texas panicum",
+        "usda_symbol": "URTE2",
+        "class_id": 12
+    },
+    {
+        "common_name": "Kochia",
+        "usda_symbol": "BASC5",
+        "class_id": 13
+    },
+    {
+        "common_name": "Common sunflower",
+        "usda_symbol": "HEAN3",
+        "class_id": 14
+    },
+    {
+        "common_name": "Ragweed parthenium",
+        "usda_symbol": "PAHY",
+        "class_id": 15
+    },
+    {
+        "common_name": "Johnsongrass",
+        "usda_symbol": "SOHA",
+        "class_id": 16
+    },
+    {
+        "common_name": "Soybean",
+        "usda_symbol": "GLMA4",
+        "class_id": 17
+    },
+    {
+        "common_name": "Smooth pigweed",
+        "usda_symbol": "AMHY",
+        "class_id": 18
+    },
+    {
+        "common_name": "Common lambsquarters",
+        "usda_symbol": "CHAL7",
+        "class_id": 19
+    },
+    {
+        "common_name": "Fall panicum",
+        "usda_symbol": "PADI",
+        "class_id": 20
+    },
+    {
+        "common_name": "Jimson weed",
+        "usda_symbol": "DAST",
+        "class_id": 21
+    },
+    {
+        "common_name": "Velvetleaf",
+        "usda_symbol": "ABTH",
+        "class_id": 22
+    },
+    {
+        "common_name": "Yellow foxtail",
+        "usda_symbol": "SEPU8",
+        "class_id": 23
+    },
+    {
+        "common_name": "Giant foxtail",
+        "usda_symbol": "SEFA",
+        "class_id": 24
+    },
+    {
+        "common_name": "Horseweed",
+        "usda_symbol": "ERCA20",
+        "class_id": 25
+    },
+    {
+        "common_name": "Maize",
+        "usda_symbol": "ZEA",
+        "class_id": 26
+    },
+    {
+        "common_name": "unknown",
+        "usda_symbol": "plant",
+        "class_id": 27
+    },
+    {
+        "common_name": "colorchecker",
+        "usda_symbol": "colorchecker",
+        "class_id": 28
+    },
+    {
+        "common_name": "Hairy vetch",
+        "usda_symbol": "VIVI",
+        "class_id": 29
+    },
+    {
+        "common_name": "Winter pea",
+        "usda_symbol": "PISA6",
+        "class_id": 30
+    },
+    {
+        "common_name": "Crimson clover",
+        "usda_symbol": "TRIN3",
+        "class_id": 31
+    },
+    {
+        "common_name": "Red clover",
+        "usda_symbol": "TRPR2",
+        "class_id": 32
+    },
+    {
+        "common_name": "Mustards",
+        "usda_symbol": "BRASS2",
+        "class_id": 33
+    },
+    {
+        "common_name": "cultivated radish",
+        "usda_symbol": "RASA2",
+        "class_id": 34
+    },
+    {
+        "common_name": "Cereal rye",
+        "usda_symbol": "SECE",
+        "class_id": 35
+    },
+    {
+        "common_name": "Triticale",
+        "usda_symbol": "TRITI2",
+        "class_id": 36
+    },
+    {
+        "common_name": "Winter wheat",
+        "usda_symbol": "TRAE",
+        "class_id": 37
+    },
+    {
+        "common_name": "Oats",
+        "usda_symbol": "AVSA",
+        "class_id": 38
+    },
+    {
+        "common_name": "Barley",
+        "usda_symbol": "HORDE",
+        "class_id": 39
+    },
+    {
+        "common_name": "Black oats",
+        "usda_symbol": "AVST2",
+        "class_id": 40
+    },
+    {
+        "common_name": "upland cotton",
+        "usda_symbol": "GOHI",
+        "class_id": 41
+    },
+    {
+        "common_name": "cotton",
+        "usda_symbol": "GOHI",
+        "class_id": 41
+    },
+    {
+        "common_name": "Sprawling signalgrass",
+        "usda_symbol": "URRE2",
+        "class_id": 42
+    },
+    {
+        "common_name": "Prickly sida",
+        "usda_symbol": "SISP",
+        "class_id": 43
+    },
+    {
+        "common_name": "Pitted morning-glory",
+        "usda_symbol": "IPLA",
+        "class_id": 44
+    },
+    {
+        "common_name": "Spiny amaranth",
+        "usda_symbol": "AMSP",
+        "class_id": 45
+    },
+    {
+        "common_name": "desert horsepurslane",
+        "usda_symbol": "TRPO2",
+        "class_id": 46
+    }
+]
