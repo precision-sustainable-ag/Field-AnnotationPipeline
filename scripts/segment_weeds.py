@@ -486,7 +486,7 @@ class SingleImageProcessor:
             np.ndarray: The cleaned mask after applying morphological operations.
         """
         # Apply morphological operations to clean up the mask
-        cleaned_mask = remove_small_holes(combined_cutout_mask.astype(bool), area_threshold=10).astype(np.uint8)
+        cleaned_mask = remove_small_holes(combined_cutout_mask.astype(bool), area_threshold=100).astype(np.uint8)
         cleaned_mask = remove_small_objects(cleaned_mask.astype(bool), min_size=100, connectivity=2).astype(np.uint8)
         kernel = np.ones((3, 3), np.uint8)
         cleaned_mask = cv2.morphologyEx(cleaned_mask, cv2.MORPH_CLOSE, kernel)
