@@ -133,6 +133,7 @@ class SingleImageProcessor:
         log.info(f"Cropped image saved as: {cropout_name}")
         
         # Save the final mask
+        class_masked_image_cropped = np.where(class_masked_image_cropped == 255, 0, class_masked_image_cropped)
         final_mask_name = Path(image_path).stem + '_mask.png'
         self.save_compressed_image(masked_image, self.visualization_label_dir / final_mask_name)
         cv2.imwrite(str(save_class_dir / final_mask_name), class_masked_image_cropped.astype(np.uint8), [cv2.IMWRITE_PNG_COMPRESSION, 1])
