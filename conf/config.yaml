@@ -25,7 +25,7 @@ data:
   # visualization_label_dir: ${data.datadir}/images_testing/test_images/output/vis_masks
   species_info: ${data.datadir}/field-utils/species_info.json
   field_species_name: ${data.datadir}/field-utils/field_species_name.json
-  broad_sprase_morph_species: ${data.datadir}/field-utils/broad_sprase_morph_species.json
+  # broad_sprase_morph_species: ${data.datadir}/field-utils/broad_sprase_morph_species.json
 
   specific_data: ${data.datadir}/field-utils/specific_data.json #need a better name
 
@@ -45,5 +45,5 @@ job:
   job_now: ${job.job_now_date}/${job.job_now_time} 
   jobdir: ${data.datadir}/${job.job_now}
 
-
+morphology_species: ${general.workdir}/conf/morphology/morphology.yaml
 

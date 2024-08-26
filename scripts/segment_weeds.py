@@ -3,15 +3,16 @@ import json
 import math
 import logging
 import random
+import cv2
+import yaml
+import numpy as np
+import torch
+import torch.multiprocessing as mp
+
 from pathlib import Path
 from datetime import datetime
 from typing import List, Tuple
 from concurrent.futures import ProcessPoolExecutor
-
-import cv2
-import numpy as np
-import torch
-import torch.multiprocessing as mp
 from omegaconf import DictConfig
 from skimage.measure import regionprops
 from skimage.morphology import remove_small_holes, label, remove_small_objects
@@ -42,10 +43,10 @@ class SingleImageProcessor:
         log.info("Initializing SingleImageProcessor")
         self.metadata_dir = Path(metadata_dir)
         self.output_dir = Path(output_dir)
-        self.visualization_label_dir = self.output_dir / "vis_masks" # before _clean_mask???????? 
+        self.visualization_label_dir = self.output_dir / "vis_masks" 
 
-        with open(Path(cfg.data.broad_sprase_morph_species), 'r') as f:
-            self.broad_sprase_morph_species = json.load(f)
+        with open(cfg.morphology_species, 'r') as f:
+            self.broad_sprase_morph_species = yaml.safe_load(f)
 
         for output_dir in [self.output_dir, self.visualization_label_dir]:
             output_dir.mkdir(exist_ok=True, parents=True)
@@ -436,10 +437,10 @@ class SingleImageProcessor:
         cutout_gray_removed_rgb = cv2.cvtColor(cutout_gray_removed_bgr, cv2.COLOR_BGR2RGB)
 
         # Apply post-processing based on class ID
-        if class_id in [item["class_id"] for item in self.broad_sprase_morph_species['sparse_morphology']]:
+        if class_id in self.broad_sprase_morph_species['sparse_morphology']:
             log.info(f"Working with sparse morphology, class_id: {class_id}")
             cleaned_mask = self._clean_sparse(cutout_gray_removed_rgb)
-        elif class_id in [item["class_id"] for item in self.broad_sprase_morph_species['broad_morphology']]:
+        elif class_id in self.broad_sprase_morph_species['broad_morphology']:
             cleaned_mask = self._clean_broad(class_id, combined_cutout_mask)
         else:
             log.error(f"class_id: {class_id} not defined in broad_sprase_morph_species")

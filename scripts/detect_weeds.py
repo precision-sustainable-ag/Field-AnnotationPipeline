@@ -1,19 +1,20 @@
 import json
 import logging
-from PIL import Image
-from PIL.ExifTags import TAGS
-from pathlib import Path
+import yaml
 import cv2
 import numpy as np
 import pandas as pd
+import math
+
+from PIL import Image
+from PIL.ExifTags import TAGS
+from pathlib import Path
 from omegaconf import DictConfig
 from ultralytics import YOLO
 from typing import Optional, Dict
-import math
 
 # Configure logging
 log = logging.getLogger(__name__)
-
 
 class ImageLoader:
     """
@@ -157,16 +158,15 @@ class MetadataExtractor:
             None
         """
         self.csv_path = cfg.data.merged_tables_permanent
-        self.field_species_name_path = cfg.data.field_species_name
         self.species_info_path = cfg.data.species_info
+
+        with open(cfg.morphology_species, 'r') as f:
+            self.broad_sprase_morph_species = yaml.safe_load(f)
 
         self.metadata_dir = Path(cfg.data.image_metadata_dir)
         
         self.df = pd.read_csv(self.csv_path, low_memory=False)
         assert not self.df.empty, "Merged data tables CSV is empty."
-
-        with open(self.field_species_name_path, "r") as file:
-            self.field_species_name = json.load(file)
 
         with open(self.species_info_path, "r") as file:
             self.species_info = json.load(file)
@@ -186,11 +186,10 @@ class MetadataExtractor:
         if species_series.empty:
             log.warning(f"Species data not found for image: {image_name}")
             return None
-
-        species_list = [str(species).lower() for species in species_series]
-        result = [item for item in self.field_species_name if item.get("common_name", "").lower() in species_list]
         
-        return result[0]["class_id"] if result else None
+        species = [str(species).lower() for species in species_series]
+        class_id = [value['class_id'] for _, value in self.species_info['species'].items() if value['common_name'].lower() in species][0]
+        return class_id
 
     @staticmethod
     def get_exif_data(image_path: str) -> dict:
