@@ -9,8 +9,8 @@ hydra:
   output_subdir: ${hydra.run.dir}/hydra
 
 pipeline:
-  # - detect_weeds
-  - segment_weeds
+  - detect_weeds
+  # - segment_weeds
 
 general:
   task: # Leave empty as placeholder
@@ -22,19 +22,14 @@ data:
   datadir: ${general.workdir}/data
   temp_image_dir: ${data.datadir}/images_testing/test_images/input
   temp_output_dir: ${data.datadir}/images_testing/test_images/output
-  # visualization_label_dir: ${data.datadir}/images_testing/test_images/output/vis_masks
+  image_metadata_dir: ${data.datadir}/images_testing/test_images/metadata
   species_info: ${data.datadir}/field-utils/species_info.json
   field_species_name: ${data.datadir}/field-utils/field_species_name.json
-  # broad_sprase_morph_species: ${data.datadir}/field-utils/broad_sprase_morph_species.json
-
-  specific_data: ${data.datadir}/field-utils/specific_data.json #need a better name
-
   path_yolo_model: ${data.datadir}/models/weed_detection/weights/best.pt
   sam_checkpoint: ${data.datadir}/models//sam/sam_checkpoints/sam_vit_b_01ec64.pth 
   sam_hq_checkpoint: ${data.datadir}/models//sam/sam_checkpoints/sam_hq_vit_h.pth
   sam_model_type: "vit_h"
   merged_tables_permanent: ${data.datadir}/persistent_tables/merged_blobs_tables_metadata_permanent.csv
-  image_metadata_dir: ${data.datadir}/metadata
 
 logs:
   logdir: ${general.workdir}/logging

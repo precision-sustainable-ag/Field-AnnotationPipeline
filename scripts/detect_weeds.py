@@ -235,39 +235,70 @@ class MetadataExtractor:
             log.info("Extracting metadata")
             # save detailed species info in "category" of metadata
             category = {}
-
             if detection_results is not None:
                 for species_key, species_value in self.species_info['species'].items():
                         if detection_results['class_id'] == species_value['class_id']:
-                            category[species_key] = species_value
+                            category = species_value
                             break
             else:
                 log.warning("Nothing to add to category.")
+                category = None
 
-            # save detailed image info in "image_info" of metadata
             image_name = Path(image_path).name
             image_info = self.df[self.df["Name"] == image_name]
 
             if image_info.empty:
                 raise ValueError(f"Image '{image_name}' not found in the dataframe.")
 
-            specific_data_list = [
-                "Name", "UploadDateTimeUTC", "MasterRefID", "ImageURL", "CameraInfo_DateTime", "SizeMiB", "ImageIndex", "UsState", "PlantType", "CloudCover",
-                "GroundResidue", "GroundCover", "Username", "CoverCropFamily", "GrowthStage", "CottonVariety", "CropOrFallow",
-                "CropTypeSecondary", "Species", "Height", "SizeClass", "FlowerFruitOrSeeds", "BaseName", "Extension", "HasMatchingJpgAndRaw"
+            # add image_info data to metadata
+            image_info_list = [
+                "Name", "Extension", "ImageURL", "UploadDateTimeUTC", "CameraInfo_DateTime", "SizeMiB", "HasMatchingJpgAndRaw", "ImageIndex", "UsState"
             ]
 
-            image_info_imp = image_info[specific_data_list].to_dict(orient='list')
-            image_info_imp_dict = {key: value[0] if value else None for key, value in image_info_imp.items()}
+            image_info_imp = image_info[image_info_list].to_dict(orient='list')
+            image_info_dict = {key: value[0] if value else None for key, value in image_info_imp.items()}
 
-            image_info_imp_dict = self._custom_decoder(image_info_imp_dict)
-            image_info_imp_dict = self._replace_en_dash(image_info_imp_dict)
+            image_info_dict = self._custom_decoder(image_info_dict) # deal with NaN values and en dash
+            image_info_dict = self._replace_en_dash(image_info_dict) # deal with en dash
 
+            # add plant_field_info data to metadata
+            plant_field_info_list = [
+                "PlantType", "CloudCover", "GroundResidue", "GroundCover", "CoverCropFamily", "GrowthStage", "CottonVariety", "CropOrFallow",
+                "CropTypeSecondary", "Species", "Height", "SizeClass", "FlowerFruitOrSeeds"
+            ]
+
+            plant_field_info = image_info[plant_field_info_list].to_dict(orient='list')
+            plant_field_info_dict = {key: value[0] if value else None for key, value in plant_field_info.items()}
+
+            plant_field_info_dict = self._custom_decoder(plant_field_info_dict) # deal with NaN values and en dash
+            plant_field_info_dict = self._replace_en_dash(plant_field_info_dict) # deal with en dash
+
+            # add selected exif data to metadata
+            exif_data_list = [
+                "ImageWidth", "ImageLength", "Make", "Model", "Software", "DateTime", "ExposureTime", "FNumber", "ExposureProgram", "ISOSpeedRatings", 
+                "RecommendedExposureIndex", "ExifVersion", "BrightnessValue", "MaxApertureValue", "LightSource", "Flash", "FocalLength", "ExposureMode", 
+                "WhiteBalance", "FocalLengthIn35mmFilm", "Contrast", "Saturation", "Sharpness", "LensModel", "LensSpecification", "BodySerialNumber"
+            ]
+
+            exif_data_imp_dict = {key: exif_data[key] for key in exif_data_list if key in exif_data}
+
+            exif_data_imp_dict = self._custom_decoder(exif_data_imp_dict) # deal with NaN values and en dash
+            exif_data_imp_dict = self._replace_en_dash(exif_data_imp_dict) # deal with en dash
+
+            # extract bbox_xywh from detection_results
+            if detection_results is not None:
+                bbox_xywh = [detection_results["bbox"]["x_min"], detection_results["bbox"]["y_min"], detection_results["bbox"]["x_max"], detection_results["bbox"]["y_max"]]
+                bbox_xywh_dict = {"bbox_xywh": bbox_xywh}
+            else:
+                bbox_xywh_dict = None
+
+            # combine all metadata into a single dictionary
             combined_dict = {
-                "detection_results": detection_results,
+                "image_info": image_info_dict,
+                "plant_field_info": plant_field_info_dict,
+                "annotation": bbox_xywh_dict,
                 "category": category,
-                "image_info": image_info_imp_dict,
-                "exif_info": exif_data
+                "exif_info": exif_data_imp_dict
             }
 
             metadata_filename = self.metadata_dir / f"{Path(image_path).stem}.json"
