@@ -73,17 +73,22 @@ class SingleImageProcessor:
             with open(json_path, 'r') as f:
                 data = json.load(f)
 
-            bbox = data['detection_results']['bbox']
-            bbox.update({
-                'image_id': data['detection_results']["image_id"],
-                'class_id': data['detection_results']["class_id"],
-                'width': bbox['x_max'] - bbox['x_min'],
-                'height': bbox['y_max'] - bbox['y_min']
-            })
+            if data['detection_results'] is not None:        
+                bbox = data['detection_results']['bbox']
+                bbox.update({
+                    'image_id': data['detection_results']["image_id"],
+                    'class_id': data['detection_results']["class_id"],
+                    'width': bbox['x_max'] - bbox['x_min'],
+                    'height': bbox['y_max'] - bbox['y_min']
+                })
 
-            log.info(f"Extracted bounding box: {bbox}")
-            self._find_bbox_center(bbox)
-            return data, bbox
+                log.info(f"Extracted bounding box: {bbox}")
+                self._find_bbox_center(bbox)
+                return data, bbox
+            else:
+                log.error(f"No detection results found in JSON file: {json_path}")
+                return None
+            
         else:
             log.error(f"No JSON file found for {json_path}")
             return None
@@ -100,50 +105,51 @@ class SingleImageProcessor:
         """
         log.info("Starting process to save cropout, final mask, and cutout.")
         
-        # Process image to get bounding box and data
-        data, bbox = self.process_image(input_paths)
-        image_path, _ = input_paths
+        if self.process_image(input_paths) is not None:
+            data, bbox = self.process_image(input_paths)
+            # Process image to get bounding box and data
+            image_path, _ = input_paths
+            # Read the image
+            image = self._read_image(image_path)
+            # Create and process masks
+            masked_image, class_masked_image = self._create_masks(image, bbox)
+            class_masked_image = class_masked_image.astype(np.uint8)
+            class_masked_image_cropped = self._crop_image(class_masked_image, bbox['y_min'], bbox['y_max'], bbox['x_min'], bbox['x_max'])
 
-        # Read the image
-        image = self._read_image(image_path)
-        
-        # Create and process masks
-        masked_image, class_masked_image = self._create_masks(image, bbox)
-        class_masked_image = class_masked_image.astype(np.uint8)
-        class_masked_image_cropped = self._crop_image(class_masked_image, bbox['y_min'], bbox['y_max'], bbox['x_min'], bbox['x_max'])
+            # Convert the mask to 3D
+            class_masked_image_3d = np.repeat(class_masked_image[:, :, np.newaxis], 3, axis=2).astype(np.uint8)
+            
+            # Directory setup for saving outputs
+            class_id = data['detection_results']["class_id"]
+            save_class_dir = Path(self.output_dir, f"{class_id}")
+            save_class_dir.mkdir(exist_ok=True, parents=True)
+            log.info(f"Output directory created at: {save_class_dir}")
+            
+            # Create the final cutout image
+            final_cutout_bgr = np.where(class_masked_image_3d != 255, image, 0)
+            final_cutout_rgb = cv2.cvtColor(final_cutout_bgr, cv2.COLOR_BGR2RGB)
+            final_cutout_rgb = self._crop_image(final_cutout_rgb, bbox['y_min'], bbox['y_max'], bbox['x_min'], bbox['x_max'])
 
-        # Convert the mask to 3D
-        class_masked_image_3d = np.repeat(class_masked_image[:, :, np.newaxis], 3, axis=2).astype(np.uint8)
-        
-        # Directory setup for saving outputs
-        class_id = data['detection_results']["class_id"]
-        save_class_dir = Path(self.output_dir, f"{class_id}")
-        save_class_dir.mkdir(exist_ok=True, parents=True)
-        log.info(f"Output directory created at: {save_class_dir}")
-        
-        # Create the final cutout image
-        final_cutout_bgr = np.where(class_masked_image_3d != 255, image, 0)
-        final_cutout_rgb = cv2.cvtColor(final_cutout_bgr, cv2.COLOR_BGR2RGB)
-        final_cutout_rgb = self._crop_image(final_cutout_rgb, bbox['y_min'], bbox['y_max'], bbox['x_min'], bbox['x_max'])
+            # Save cropped image
+            image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            image_cropped = self._crop_image(image_rgb, bbox['y_min'], bbox['y_max'], bbox['x_min'], bbox['x_max'])
+            cropout_name = Path(image_path).stem + '_cropout.png'
+            cv2.imwrite(str(save_class_dir / cropout_name), image_cropped.astype(np.uint8), [cv2.IMWRITE_PNG_COMPRESSION, 1])
+            log.info(f"Cropped image saved as: {cropout_name}")
+            
+            # Save the final mask
+            class_masked_image_cropped = np.where(class_masked_image_cropped == 255, 0, class_masked_image_cropped)
+            final_mask_name = Path(image_path).stem + '_mask.png'
+            self.save_compressed_image(masked_image, self.visualization_label_dir / final_mask_name)
+            cv2.imwrite(str(save_class_dir / final_mask_name), class_masked_image_cropped.astype(np.uint8), [cv2.IMWRITE_PNG_COMPRESSION, 1])
+            log.info(f"Final mask saved as: {final_mask_name}")
 
-        # Save cropped image
-        image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        image_cropped = self._crop_image(image_rgb, bbox['y_min'], bbox['y_max'], bbox['x_min'], bbox['x_max'])
-        cropout_name = Path(image_path).stem + '_cropout.png'
-        cv2.imwrite(str(save_class_dir / cropout_name), image_cropped.astype(np.uint8), [cv2.IMWRITE_PNG_COMPRESSION, 1])
-        log.info(f"Cropped image saved as: {cropout_name}")
-        
-        # Save the final mask
-        class_masked_image_cropped = np.where(class_masked_image_cropped == 255, 0, class_masked_image_cropped)
-        final_mask_name = Path(image_path).stem + '_mask.png'
-        self.save_compressed_image(masked_image, self.visualization_label_dir / final_mask_name)
-        cv2.imwrite(str(save_class_dir / final_mask_name), class_masked_image_cropped.astype(np.uint8), [cv2.IMWRITE_PNG_COMPRESSION, 1])
-        log.info(f"Final mask saved as: {final_mask_name}")
-
-        # Save the final cutout
-        cutout_name = Path(image_path).stem + '_cutout.png'
-        cv2.imwrite(str(save_class_dir / cutout_name), final_cutout_rgb.astype(np.uint8), [cv2.IMWRITE_PNG_COMPRESSION, 1])
-        log.info(f"Final cutout saved as: {cutout_name}")
+            # Save the final cutout
+            cutout_name = Path(image_path).stem + '_cutout.png'
+            cv2.imwrite(str(save_class_dir / cutout_name), final_cutout_rgb.astype(np.uint8), [cv2.IMWRITE_PNG_COMPRESSION, 1])
+            log.info(f"Final cutout saved as: {cutout_name}")
+        else:
+            log.error(f"Data or bbox is None, skipping image processing.")
 
     def save_compressed_image(self, image: np.ndarray, path: str, quality: int = 98) -> None:
         """

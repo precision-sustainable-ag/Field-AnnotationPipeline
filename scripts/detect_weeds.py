@@ -71,14 +71,13 @@ class WeedDetector:
         log.info("Starting weed detection.")
         try:
             results = self.model(image)
-
-            if not results:
+            
+            if not results or not results[0].boxes.xyxy.tolist():
                 log.warning("No detection found.")
                 return None
 
             bbox = results[0].boxes.xyxy.tolist()[0]
             x_min, y_min, x_max, y_max = map(int, bbox)
-
             detection_results = {
                 "image_id": None,
                 "bbox": {
@@ -88,7 +87,6 @@ class WeedDetector:
                     "y_max": y_max
                 }
             }
-
             return detection_results
 
         except Exception as e:
@@ -237,10 +235,14 @@ class MetadataExtractor:
             log.info("Extracting metadata")
             # save detailed species info in "category" of metadata
             category = {}
-            for species_key, species_value in self.species_info['species'].items():
-                    if detection_results['class_id'] == species_value['class_id']:
-                        category[species_key] = species_value
-                        break
+
+            if detection_results is not None:
+                for species_key, species_value in self.species_info['species'].items():
+                        if detection_results['class_id'] == species_value['class_id']:
+                            category[species_key] = species_value
+                            break
+            else:
+                log.warning("Nothing to add to category.")
 
             # save detailed image info in "image_info" of metadata
             image_name = Path(image_path).name
@@ -358,12 +360,14 @@ class ProcessDetections:
             class_id = self.metadata_extractor.get_class_id(image_path.name)
             if not class_id:
                 return
-
+            
             detection_results = self.weed_detector.detect_weeds(image)
-            detection_results["image_id"] = Path(image_path).stem
-            detection_results["class_id"] = class_id
-            if detection_results is None:
-                return
+            if detection_results is not None:
+                detection_results = self.weed_detector.detect_weeds(image)
+                detection_results["image_id"] = Path(image_path).stem
+                detection_results["class_id"] = class_id
+            else: 
+                log.warning(f"No detection.")
             
             exif_data = self.metadata_extractor.get_exif_data(str(image_path))
             self.metadata_extractor.save_image_metadata(str(image_path), detection_results, self.image_metadata_dir, exif_data)
