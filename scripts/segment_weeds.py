@@ -77,7 +77,7 @@ class SingleImageProcessor:
                 data = json.load(f)
             # update bbox to include width, height, image_id, and class_id
             if data["annotation"] is not None:
-                image_id = data["image_info"]["Name"].split(".")[0]
+                image_id = data["image_info"]["Name"]
                 class_id = data["category"]["class_id"]
                 bbox = data["annotation"]["bbox_xywh"]
                 bbox = {

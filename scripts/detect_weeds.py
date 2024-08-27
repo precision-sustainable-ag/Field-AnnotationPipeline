@@ -257,6 +257,7 @@ class MetadataExtractor:
 
             image_info_imp = image_info[image_info_list].to_dict(orient='list')
             image_info_dict = {key: value[0] if value else None for key, value in image_info_imp.items()}
+            image_info_dict["Name"] = image_info_dict["Name"].split(".")[0]
 
             image_info_dict = self._custom_decoder(image_info_dict) # deal with NaN values and en dash
             image_info_dict = self._replace_en_dash(image_info_dict) # deal with en dash
