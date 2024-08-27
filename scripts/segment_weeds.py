@@ -58,13 +58,16 @@ class SingleImageProcessor:
 
     def process_image(self, input_paths: Tuple[str, str]) -> Tuple[dict, dict]:
         """
-        Processes an image and its corresponding JSON annotations.
-
+        Processes an image and its JSON annotations to extract bounding box information.
         Parameters:
-            input_paths (Tuple[str, str]): Paths to the image and JSON file.
+            input_paths (Tuple[str, str]): 
+                - Path to the image file.
+                - Path to the JSON file with annotations.
 
         Returns:
-            Tuple[dict, dict]: Tuple containing the JSON data and the extracted bounding box information
+            Tuple[dict, dict]: 
+                - JSON data dictionary.
+                - Bounding box information with `image_id`, `class_id`, `x_min`, `y_min`, `x_max`, `y_max`, `width`, and `height`.
         """
         image_path, json_path = input_paths
         log.info(f"Processing image: {image_path}")
@@ -72,16 +75,19 @@ class SingleImageProcessor:
         if Path(json_path).exists():
             with open(json_path, 'r') as f:
                 data = json.load(f)
-
-            if data['detection_results'] is not None:        
-                bbox = data['detection_results']['bbox']
-                bbox.update({
-                    'image_id': data['detection_results']["image_id"],
-                    'class_id': data['detection_results']["class_id"],
-                    'width': bbox['x_max'] - bbox['x_min'],
-                    'height': bbox['y_max'] - bbox['y_min']
-                })
-
+            # update bbox to include width, height, image_id, and class_id
+            if data["annotation"] is not None:
+                image_id = data["image_info"]["Name"].split(".")[0]
+                class_id = data["category"]["class_id"]
+                bbox = data["annotation"]["bbox_xywh"]
+                bbox = {
+                    "image_id": image_id,
+                    "class_id": class_id,
+                    "x_min": bbox[0], "y_min": bbox[1],
+                    "x_max": bbox[2], "y_max": bbox[3],
+                    "width": bbox[2] - bbox[0],
+                    "height": bbox[3] - bbox[1]
+                }
                 log.info(f"Extracted bounding box: {bbox}")
                 self._find_bbox_center(bbox)
                 return data, bbox
@@ -120,7 +126,7 @@ class SingleImageProcessor:
             class_masked_image_3d = np.repeat(class_masked_image[:, :, np.newaxis], 3, axis=2).astype(np.uint8)
             
             # Directory setup for saving outputs
-            class_id = data['detection_results']["class_id"]
+            class_id = data["category"]["class_id"]
             save_class_dir = Path(self.output_dir, f"{class_id}")
             save_class_dir.mkdir(exist_ok=True, parents=True)
             log.info(f"Output directory created at: {save_class_dir}")
@@ -624,7 +630,7 @@ def main(cfg: DictConfig) -> None:
     Returns:
         None
     """
-    log.info("Starting batch processing")
+    log.info("Starting segmentation.")
     directory_initializer = DirectoryInitializer(cfg)
     imgs = directory_initializer.get_images()
     output_dir = directory_initializer.output_dir
