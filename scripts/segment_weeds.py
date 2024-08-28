@@ -45,8 +45,8 @@ class SingleImageProcessor:
         self.output_dir = Path(output_dir)
         self.visualization_label_dir = self.output_dir / "vis_masks" 
 
-        with open(cfg.morphology_species, 'r') as f:
-            self.broad_sprase_morph_species = yaml.safe_load(f)
+        self.broad_spceies = cfg.morphology.broad_morphology
+        self.sparse_spceies = cfg.morphology.sparse_morphology
 
         for output_dir in [self.output_dir, self.visualization_label_dir]:
             output_dir.mkdir(exist_ok=True, parents=True)
@@ -81,7 +81,7 @@ class SingleImageProcessor:
                 class_id = data["category"]["class_id"]
                 bbox = data["annotation"]["bbox_xywh"]
 
-                # interanl bbox structure to include image_id, class_id, and different format for bbox
+                # Internal bbox structure to include image_id, class_id, and different format for bbox
                 _bbox = {
                     "image_id": image_id,
                     "class_id": class_id,
@@ -90,7 +90,7 @@ class SingleImageProcessor:
                     "width": bbox[2] - bbox[0],
                     "height": bbox[3] - bbox[1]
                 }
-                log.info(f"Updated bounding box: {_bbox}")
+
                 self._find_bbox_center(_bbox)
                 return data, _bbox
             else:
@@ -451,10 +451,11 @@ class SingleImageProcessor:
         cutout_gray_removed_rgb = cv2.cvtColor(cutout_gray_removed_bgr, cv2.COLOR_BGR2RGB)
 
         # Apply post-processing based on class ID
-        if class_id in self.broad_sprase_morph_species['sparse_morphology']:
-            log.info(f"Working with sparse morphology, class_id: {class_id}")
+        if class_id in self.broad_spceies:
+            log.info(f"Working with broad morphology, class_id: {class_id}")
             cleaned_mask = self._clean_sparse(cutout_gray_removed_rgb)
-        elif class_id in self.broad_sprase_morph_species['broad_morphology']:
+        elif class_id in self.sparse_spceies:
+            log.info(f"Working with sparse morphology, class_id: {class_id}")
             cleaned_mask = self._clean_broad(class_id, combined_cutout_mask)
         else:
             log.error(f"class_id: {class_id} not defined in broad_sprase_morph_species")
