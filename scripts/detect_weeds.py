@@ -5,6 +5,7 @@ import cv2
 import numpy as np
 import pandas as pd
 import math
+import exifread
 
 from PIL import Image
 from PIL.ExifTags import TAGS
@@ -186,38 +187,62 @@ class MetadataExtractor:
             return None
         
         species = [str(species).lower() for species in species_series]
+
+
+
+
+
+        ### use 'alias_name' as key in species_info to get class_id
+
         class_id = [value['class_id'] for _, value in self.species_info['species'].items() if value['common_name'].lower() in species][0]
         return class_id
-
+    
     @staticmethod
     def get_exif_data(image_path: str) -> dict:
         """
-        This function extracts EXIF data from the image.
-        
-        Parameters:
-            image_path (str): Path to the image file.
-        
+        Extracts EXIF metadata from an image and returns it as an ImageMetadata dataclass.
+
+        The function reads the image file, processes the EXIF tags using exifread, 
+        formats the metadata into a dictionary, and converts it to an ImageMetadata instance.
+
         Returns:
-            dict: Extracted EXIF data.
+            ImageMetadata: The extracted EXIF metadata.
         """
-        
         try:
             log.info("Extracting EXIF data from the image.")
-            image = Image.open(image_path)
-            exclude_keys = ["PrintImageMatching", "UserComment", "MakerNote", "ComponentsConfiguration", "SceneType"]
 
+            # Open image file for reading (must be in binary mode)
+            f = open(image_path, "rb")
+            
+            # Return Exif tags
+            tags = exifread.process_file(f, details=False)
+            f.close()
+
+            # Initialize an empty dictionary to hold processed metadata
             filtered_exif_data = {}
-            if hasattr(image, '_getexif'):
-                exif_info = image._getexif()
-                if exif_info:
-                    filtered_exif_data = {TAGS.get(tag, tag): value for tag, value in exif_info.items() if TAGS.get(tag, tag) not in exclude_keys}
-            log.info("Extracting EXIF data from the image completed.")
-            return filtered_exif_data
 
+            # Iterate over the extracted tags and process them
+            for x, y in tags.items():
+                # Extract the value, handling lists with a single element
+                newval = (
+                    y.values[0]
+                    if type(y.values) == list and len(y.values) == 1
+                    else y.values
+                )
+                # Convert Ratio objects to strings
+                if type(newval) == exifread.utils.Ratio:
+                    newval = str(newval)
+
+                # Clean up the tag key by removing unnecessary prefixes
+                filtered_exif_data[x.rsplit(" ")[1]] = newval
+
+            # # Create an instance of ImageMetadata with the processed metadata
+            # imgmeta = ImageMetadata(**meta)
+            return filtered_exif_data
         except Exception as e:
             log.error(f"Failed to extract EXIF data from {image_path}: {e}", exc_info=True)
             return {}
-
+        
     def save_image_metadata(self, image_path: str, detection_results: dict, output_dir: Path, exif_data: dict) -> None:
         """
         This function saves the metadata extracted from the image.
@@ -233,20 +258,9 @@ class MetadataExtractor:
         """
         try:
             log.info("Extracting metadata")
-            # save detailed species info in "category" of metadata
-            category = {}
-            if detection_results is not None:
-                for species_key, species_value in self.species_info['species'].items():
-                        if detection_results['class_id'] == species_value['class_id']:
-                            category = species_value
-                            break
-            else:
-                log.warning("Nothing to add to category.")
-                category = None
 
             image_name = Path(image_path).name
             image_info = self.df[self.df["Name"] == image_name]
-
             if image_info.empty:
                 raise ValueError(f"Image '{image_name}' not found in the dataframe.")
 
@@ -274,9 +288,17 @@ class MetadataExtractor:
             plant_field_info_dict = self._custom_decoder(plant_field_info_dict) # deal with NaN values and en dash
             plant_field_info_dict = self._replace_en_dash(plant_field_info_dict) # deal with en dash
 
+            # save detailed species info in "category" of metadata
+            category = {}
+            # if detection_results is not None:
+            for species_key, species_value in self.species_info['species'].items():
+                if plant_field_info_dict["Species"].lower() == species_value["common_name"].lower():
+                    category = species_value
+                    break
+
             # add selected exif data to metadata
             exif_data_list = [
-                "ImageWidth", "ImageLength", "Make", "Model", "Software", "DateTime", "ExposureTime", "FNumber", "ExposureProgram", "ISOSpeedRatings", 
+                "ExifImageWidth", "ExifImageLength", "Make", "Model", "Software", "DateTime", "ExposureTime", "FNumber", "ExposureProgram", "ISOSpeedRatings", 
                 "RecommendedExposureIndex", "ExifVersion", "BrightnessValue", "MaxApertureValue", "LightSource", "Flash", "FocalLength", "ExposureMode", 
                 "WhiteBalance", "FocalLengthIn35mmFilm", "Contrast", "Saturation", "Sharpness", "LensModel", "LensSpecification", "BodySerialNumber"
             ]
@@ -291,7 +313,7 @@ class MetadataExtractor:
                 bbox_xywh = [detection_results["bbox"]["x_min"], detection_results["bbox"]["y_min"], detection_results["bbox"]["x_max"], detection_results["bbox"]["y_max"]]
                 bbox_xywh_dict = {"bbox_xywh": bbox_xywh}
             else:
-                bbox_xywh_dict = None
+                bbox_xywh_dict = {"bbox_xywh": None} 
 
             # combine all metadata into a single dictionary
             combined_dict = {
@@ -299,7 +321,7 @@ class MetadataExtractor:
                 "plant_field_info": plant_field_info_dict,
                 "annotation": bbox_xywh_dict,
                 "category": category,
-                "exif_info": exif_data_imp_dict
+                "exif_meta": exif_data_imp_dict
             }
 
             metadata_filename = self.metadata_dir / f"{Path(image_path).stem}.json"
