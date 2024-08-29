@@ -1349,11 +1349,11 @@
             "multi_species_USDA_symbol": null,
             "link": "https://plants.usda.gov/home/plantProfile?symbol=ACOS",
             "note": null,
-            "hex": "#d88633",
+            "hex": "#34649f",
             "rgb": [
-                216,
-                134,
-                51
+                52,
+                100,
+                159
             ]
         },
         "CYES": {
@@ -1377,11 +1377,11 @@
             "multi_species_USDA_symbol": null,
             "link": "https://plants.usda.gov/home/plantProfile?symbol=CYES",
             "note": null,
-            "hex": "#d88633",
+            "hex": "#e7d37e",
             "rgb": [
-                216,
-                134,
-                51
+                231,
+                211,
+                126
             ]
         },
         "AMTR": {
@@ -1405,11 +1405,11 @@
             "multi_species_USDA_symbol": null,
             "link": "https://plants.usda.gov/home/plantProfile?symbol=AMTR",
             "note": null,
-            "hex": "#d88633",
+            "hex": "#9d4999",
             "rgb": [
-                216,
-                134,
-                51
+                157,
+                73,
+                153
             ]
         },
         "SOEL": {
@@ -1433,11 +1433,11 @@
             "multi_species_USDA_symbol": null,
             "link": "https://plants.usda.gov/home/plantProfile?symbol=SOEL",
             "note": null,
-            "hex": "#d88633",
+            "hex": "#7b852d",
             "rgb": [
-                216,
-                134,
-                51
+                123,
+                133,
+                45
             ]
         },
         "COAR4": {
@@ -1461,11 +1461,11 @@
             "multi_species_USDA_symbol": null,
             "link": "https://plants.usda.gov/home/plantProfile?symbol=COAR4",
             "note": null,
-            "hex": "#d88633",
+            "hex": "#b5317f",
             "rgb": [
-                216,
-                134,
-                51
+                181,
+                49,
+                127
             ]
         }
     },
