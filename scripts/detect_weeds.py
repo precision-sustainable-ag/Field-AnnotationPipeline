@@ -310,6 +310,9 @@ class MetadataExtractor:
 
             exif_data_imp_dict = {key: exif_data[key] for key in exif_data_list if key in exif_data}
 
+            exif_data_imp_dict = {key.replace("ExifImageWidth", "ImageWidth"): value for key, value in exif_data_imp_dict.items()}
+            exif_data_imp_dict = {key.replace("ExifImageLength", "ImageLength"): value for key, value in exif_data_imp_dict.items()}
+
             exif_data_imp_dict = self._custom_decoder(exif_data_imp_dict) # deal with NaN values and en dash
             exif_data_imp_dict = self._replace_en_dash(exif_data_imp_dict) # deal with en dash
 
