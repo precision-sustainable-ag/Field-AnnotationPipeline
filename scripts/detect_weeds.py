@@ -180,21 +180,25 @@ class MetadataExtractor:
         Returns:
             str: Class ID of the species if found; otherwise, returns None.
         """
-        log.info("Loading image data.")
+        log.info(f"Loading image data for {image_name}.")
         species_series = self.df[self.df["Name"] == image_name]["Species"]
         if species_series.empty:
             log.warning(f"Species data not found for image: {image_name}")
             return None
         
-        species = [str(species).lower() for species in species_series]
+        species = [str(species).lower() for species in species_series][0]
+
+        for _, values in self.species_info['species'].items():
+            if 'alias' in values: # if different common names exists, use alias to match
+                if values['alias'].lower() == species:
+                    class_id = values['class_id']
+                    break
+            else:
+                class_id = [value['class_id'] for _, value in self.species_info['species'].items() if value['common_name'].lower() in species][0]
 
 
+        print(f"Class ID: {class_id}")
 
-
-
-        ### use 'alias_name' as key in species_info to get class_id
-
-        class_id = [value['class_id'] for _, value in self.species_info['species'].items() if value['common_name'].lower() in species][0]
         return class_id
     
     @staticmethod
@@ -289,13 +293,14 @@ class MetadataExtractor:
             plant_field_info_dict = self._replace_en_dash(plant_field_info_dict) # deal with en dash
 
             # save detailed species info in "category" of metadata
-            category = {}
-            # if detection_results is not None:
-            for species_key, species_value in self.species_info['species'].items():
-                if plant_field_info_dict["Species"].lower() == species_value["common_name"].lower():
-                    category = species_value
-                    break
+            class_id = self.get_class_id(image_name)
 
+            for _, species_value in self.species_info['species'].items():
+                if species_value['class_id'] == class_id:
+                    category = species_value
+                    category.pop('alias') if 'alias' in category else None # delete class_id in the final metadata
+                    break
+                
             # add selected exif data to metadata
             exif_data_list = [
                 "ExifImageWidth", "ExifImageLength", "Make", "Model", "Software", "DateTime", "ExposureTime", "FNumber", "ExposureProgram", "ISOSpeedRatings", 
@@ -398,7 +403,7 @@ class ProcessDetections:
 
     def process_image(self, image_path: Path) -> None:
         """
-        THis function processes the image by detecting weeds and saving the metadata.
+        This function processes the image by detecting weeds and saving the metadata.
 
         Parameters:
             image_path (Path): Path to the image file.

@@ -10,8 +10,8 @@ hydra:
   output_subdir: ${hydra.run.dir}/hydra
 
 pipeline:
-  # - detect_weeds
-  - segment_weeds
+  - detect_weeds
+  # - segment_weeds
 
 general:
   task: # Leave empty as placeholder
@@ -24,7 +24,7 @@ data:
   temp_image_dir: ${data.datadir}/images_testing/test_images/input
   temp_output_dir: ${data.datadir}/images_testing/test_images/output
   image_metadata_dir: ${data.datadir}/images_testing/test_images/metadata
-  species_info: ${data.datadir}/field-utils/species_info.json
+  species_info: ${data.datadir}/field-utils/field_species_info.json
   field_species_name: ${data.datadir}/field-utils/field_species_name.json
   path_yolo_model: ${data.datadir}/models/weed_detection/weights/best.pt
   sam_checkpoint: ${data.datadir}/models//sam/sam_checkpoints/sam_vit_b_01ec64.pth 
