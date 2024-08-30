@@ -34,13 +34,9 @@ class ImageLoader:
         Returns:
             np.ndarray: Image as a numpy array.
         """
-        try:
-            log.info(f"Reading image from {image_path}.")
-            image = cv2.cvtColor(cv2.imread(str(image_path)), cv2.COLOR_BGR2RGB)
-            return image
-        except Exception as e:
-            log.error(f"Failed to read image {image_path}: {e}", exc_info=True)
-            return None
+        log.info(f"Reading image from {image_path}.")
+        image = cv2.cvtColor(cv2.imread(str(image_path)), cv2.COLOR_BGR2RGB)
+        return image
 
 class WeedDetector:
     """
@@ -70,29 +66,24 @@ class WeedDetector:
             dict: Detection results including bbox if detection is successful; otherwise, returns None.
         """
         log.info("Starting weed detection.")
-        try:
-            results = self.model(image)
-            
-            if not results or not results[0].boxes.xyxy.tolist():
-                log.warning("No detection found.")
-                return None
-
-            bbox = results[0].boxes.xyxy.tolist()[0]
-            x_min, y_min, x_max, y_max = map(int, bbox)
-            detection_results = {
-                "image_id": None,
-                "bbox": {
-                    "x_min": x_min,
-                    "y_min": y_min,
-                    "x_max": x_max,
-                    "y_max": y_max
-                }
-            }
-            return detection_results
-
-        except Exception as e:
-            log.error(f"Failed to detect weeds: {e}", exc_info=True)
+        results = self.model(image)
+        
+        if not results or not results[0].boxes.xyxy.tolist():
+            log.warning("No detection found.")
             return None
+
+        bbox = results[0].boxes.xyxy.tolist()[0]
+        x_min, y_min, x_max, y_max = map(int, bbox)
+        detection_results = {
+            "image_id": None,
+            "bbox": {
+                "x_min": x_min,
+                "y_min": y_min,
+                "x_max": x_max,
+                "y_max": y_max
+            }
+        }
+        return detection_results
 
 
 class ImageProcessor:
@@ -112,14 +103,10 @@ class ImageProcessor:
         Returns:  
             np.ndarray: Cropped image.
         """
-        try:
-            x_min, y_min, x_max, y_max = bbox["x_min"], bbox["y_min"], bbox["x_max"], bbox["y_max"]
-            cropout_image = image[y_min:y_max, x_min:x_max]
-            log.info("Image cropping completed.")
-            return cropout_image
-        except Exception as e:
-            log.error(f"Failed to crop image: {e}", exc_info=True)
-            return None
+        x_min, y_min, x_max, y_max = bbox["x_min"], bbox["y_min"], bbox["x_max"], bbox["y_max"]
+        cropout_image = image[y_min:y_max, x_min:x_max]
+        log.info("Image cropping completed.")
+        return cropout_image
 
     @staticmethod
     def save_image(image: np.ndarray, image_path: Path) -> None:
@@ -133,12 +120,9 @@ class ImageProcessor:
         Returns:
             None
         """
-        try:
-            image_bgr = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-            cv2.imwrite(str(image_path), image_bgr, [int(cv2.IMWRITE_JPEG_QUALITY), 100])
-            log.info(f"Image saved to {image_path}.")
-        except Exception as e:
-            log.error(f"Failed to save image to {image_path}: {e}", exc_info=True)
+        image_bgr = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+        cv2.imwrite(str(image_path), image_bgr, [int(cv2.IMWRITE_JPEG_QUALITY), 100])
+        log.info(f"Image saved to {image_path}.")
 
 
 class MetadataExtractor:
@@ -188,18 +172,30 @@ class MetadataExtractor:
         
         species = [str(species).lower() for species in species_series][0]
 
+        class_id = self._find_class_id(species)
+
+        log.info(f"Class ID: {class_id}")
+
+        return class_id
+
+    def _find_class_id(self, species: str) -> Optional[str]:
+        """
+        This function finds the class ID for the given species.
+
+        Parameters:
+            species (str): Species name.
+
+        Returns:
+            str: Class ID of the species if found; otherwise, returns None.
+        """
         for _, values in self.species_info['species'].items():
             if 'alias' in values: # if different common names exists, use alias to match
                 if values['alias'].lower() == species:
-                    class_id = values['class_id']
-                    break
-            else:
-                class_id = [value['class_id'] for _, value in self.species_info['species'].items() if value['common_name'].lower() in species][0]
-
-
-        print(f"Class ID: {class_id}")
-
-        return class_id
+                    return values['class_id']
+            elif 'alias' not in values and values['common_name'].lower() == species:
+                return values['class_id']
+        
+        return None
     
     @staticmethod
     def get_exif_data(image_path: str) -> dict:
@@ -212,40 +208,36 @@ class MetadataExtractor:
         Returns:
             ImageMetadata: The extracted EXIF metadata.
         """
-        try:
-            log.info("Extracting EXIF data from the image.")
+        log.info("Extracting EXIF data from the image.")
 
-            # Open image file for reading (must be in binary mode)
-            f = open(image_path, "rb")
-            
-            # Return Exif tags
-            tags = exifread.process_file(f, details=False)
-            f.close()
+        # Open image file for reading (must be in binary mode)
+        f = open(image_path, "rb")
+        
+        # Return Exif tags
+        tags = exifread.process_file(f, details=False)
+        f.close()
 
-            # Initialize an empty dictionary to hold processed metadata
-            filtered_exif_data = {}
+        # Initialize an empty dictionary to hold processed metadata
+        filtered_exif_data = {}
 
-            # Iterate over the extracted tags and process them
-            for x, y in tags.items():
-                # Extract the value, handling lists with a single element
-                newval = (
-                    y.values[0]
-                    if type(y.values) == list and len(y.values) == 1
-                    else y.values
-                )
-                # Convert Ratio objects to strings
-                if type(newval) == exifread.utils.Ratio:
-                    newval = str(newval)
+        # Iterate over the extracted tags and process them
+        for x, y in tags.items():
+            # Extract the value, handling lists with a single element
+            newval = (
+                y.values[0]
+                if type(y.values) == list and len(y.values) == 1
+                else y.values
+            )
+            # Convert Ratio objects to strings
+            if type(newval) == exifread.utils.Ratio:
+                newval = str(newval)
 
-                # Clean up the tag key by removing unnecessary prefixes
-                filtered_exif_data[x.rsplit(" ")[1]] = newval
+            # Clean up the tag key by removing unnecessary prefixes
+            filtered_exif_data[x.rsplit(" ")[1]] = newval
 
-            # # Create an instance of ImageMetadata with the processed metadata
-            # imgmeta = ImageMetadata(**meta)
-            return filtered_exif_data
-        except Exception as e:
-            log.error(f"Failed to extract EXIF data from {image_path}: {e}", exc_info=True)
-            return {}
+        # # Create an instance of ImageMetadata with the processed metadata
+        # imgmeta = ImageMetadata(**meta)
+        return filtered_exif_data
         
     def save_image_metadata(self, image_path: str, detection_results: dict, output_dir: Path, exif_data: dict) -> None:
         """
@@ -260,88 +252,144 @@ class MetadataExtractor:
         Returns:
             None
         """
-        try:
-            log.info("Extracting metadata")
+        log.info("Extracting metadata")
 
-            image_name = Path(image_path).name
-            image_info = self.df[self.df["Name"] == image_name]
-            if image_info.empty:
-                raise ValueError(f"Image '{image_name}' not found in the dataframe.")
+        image_name = Path(image_path).name
+        image_info = self.df[self.df["Name"] == image_name]
+        if image_info.empty:
+            raise ValueError(f"Image '{image_name}' not found in the dataframe.")
 
-            # add image_info data to metadata
-            image_info_list = [
-                "Name", "Extension", "ImageURL", "UploadDateTimeUTC", "CameraInfo_DateTime", "SizeMiB", "HasMatchingJpgAndRaw", "ImageIndex", "UsState"
-            ]
+        image_info_dict = self._get_image_info(image_info, image_name)
+        plant_field_info_dict = self._get_plant_field_info(image_info)
+        category = self._get_category(image_name)
+        exif_data_imp_dict = self._get_exif_data(exif_data)
 
-            image_info_imp = image_info[image_info_list].to_dict(orient='list')
-            image_info_dict = {key: value[0] if value else None for key, value in image_info_imp.items()}
-            image_info_dict["Name"] = image_info_dict["Name"].split(".")[0]
+        combined_dict = {
+            "image_info": image_info_dict,
+            "plant_field_info": plant_field_info_dict,
+            "annotation": self._get_bbox_xywh(detection_results),
+            "category": category,
+            "exif_meta": exif_data_imp_dict
+        }
 
-            image_info_dict = self._custom_decoder(image_info_dict) # deal with NaN values and en dash
-            image_info_dict = self._replace_en_dash(image_info_dict) # deal with en dash
+        metadata_filename = self.metadata_dir / f"{Path(image_path).stem}.json"
+        self.metadata_dir.mkdir(exist_ok=True, parents=True)
 
-            # add plant_field_info data to metadata
-            plant_field_info_list = [
-                "PlantType", "CloudCover", "GroundResidue", "GroundCover", "CoverCropFamily", "GrowthStage", "CottonVariety", "CropOrFallow",
-                "CropTypeSecondary", "Species", "Height", "SizeClass", "FlowerFruitOrSeeds"
-            ]
+        with open(metadata_filename, "w") as file:
+            json.dump(combined_dict, file, indent=4, default=str)
+        
+        log.info(f"Metadata saved to {metadata_filename}.")
 
-            plant_field_info = image_info[plant_field_info_list].to_dict(orient='list')
-            plant_field_info_dict = {key: value[0] if value else None for key, value in plant_field_info.items()}
+    def _get_image_info(self, image_info: pd.DataFrame, image_name: str) -> dict:
+        """
+        This function extracts the image information from the dataframe.
 
-            plant_field_info_dict = self._custom_decoder(plant_field_info_dict) # deal with NaN values and en dash
-            plant_field_info_dict = self._replace_en_dash(plant_field_info_dict) # deal with en dash
+        Parameters:
+            image_info (pd.DataFrame): Dataframe containing the image information.
+            image_name (str): Name of the image.
 
-            # save detailed species info in "category" of metadata
-            class_id = self.get_class_id(image_name)
+        Returns:
+            dict: Extracted image information.
+        """
+        image_info_list = [
+            "Name", "Extension", "ImageURL", "UploadDateTimeUTC", "CameraInfo_DateTime", "SizeMiB", "HasMatchingJpgAndRaw", "ImageIndex", "UsState"
+        ]
 
-            for _, species_value in self.species_info['species'].items():
-                if species_value['class_id'] == class_id:
-                    category = species_value
-                    category.pop('alias') if 'alias' in category else None # delete class_id in the final metadata
-                    break
-                
-            # add selected exif data to metadata
-            exif_data_list = [
-                "ExifImageWidth", "ExifImageLength", "Make", "Model", "Software", "DateTime", "ExposureTime", "FNumber", "ExposureProgram", "ISOSpeedRatings", 
-                "RecommendedExposureIndex", "ExifVersion", "BrightnessValue", "MaxApertureValue", "LightSource", "Flash", "FocalLength", "ExposureMode", 
-                "WhiteBalance", "FocalLengthIn35mmFilm", "Contrast", "Saturation", "Sharpness", "LensModel", "LensSpecification", "BodySerialNumber"
-            ]
+        image_info_imp = image_info[image_info_list].to_dict(orient='list')
+        image_info_dict = {key: value[0] if value else None for key, value in image_info_imp.items()}
+        image_info_dict["Name"] = image_info_dict["Name"].split(".")[0]
 
-            exif_data_imp_dict = {key: exif_data[key] for key in exif_data_list if key in exif_data}
+        image_info_dict = self._custom_decoder(image_info_dict) # deal with NaN values and en dash
+        image_info_dict = self._replace_en_dash(image_info_dict) # deal with en dash
 
-            exif_data_imp_dict = {key.replace("ExifImageWidth", "ImageWidth"): value for key, value in exif_data_imp_dict.items()}
-            exif_data_imp_dict = {key.replace("ExifImageLength", "ImageLength"): value for key, value in exif_data_imp_dict.items()}
+        return image_info_dict
 
-            exif_data_imp_dict = self._custom_decoder(exif_data_imp_dict) # deal with NaN values and en dash
-            exif_data_imp_dict = self._replace_en_dash(exif_data_imp_dict) # deal with en dash
+    def _get_plant_field_info(self, image_info: pd.DataFrame) -> dict:
+        """
+        This function extracts the plant field information from the dataframe.
 
-            # extract bbox_xywh from detection_results
-            if detection_results is not None:
-                bbox_xywh = [detection_results["bbox"]["x_min"], detection_results["bbox"]["y_min"], detection_results["bbox"]["x_max"], detection_results["bbox"]["y_max"]]
-                bbox_xywh_dict = {"bbox_xywh": bbox_xywh}
-            else:
-                bbox_xywh_dict = {"bbox_xywh": None} 
+        Parameters:
+            image_info (pd.DataFrame): Dataframe containing the image information.
 
-            # combine all metadata into a single dictionary
-            combined_dict = {
-                "image_info": image_info_dict,
-                "plant_field_info": plant_field_info_dict,
-                "annotation": bbox_xywh_dict,
-                "category": category,
-                "exif_meta": exif_data_imp_dict
-            }
+        Returns:
+            dict: Extracted plant field information.
+        """
+        plant_field_info_list = [
+            "PlantType", "CloudCover", "GroundResidue", "GroundCover", "CoverCropFamily", "GrowthStage", "CottonVariety", "CropOrFallow",
+            "CropTypeSecondary", "Species", "Height", "SizeClass", "FlowerFruitOrSeeds"
+        ]
 
-            metadata_filename = self.metadata_dir / f"{Path(image_path).stem}.json"
-            self.metadata_dir.mkdir(exist_ok=True, parents=True)
+        plant_field_info = image_info[plant_field_info_list].to_dict(orient='list')
+        plant_field_info_dict = {key: value[0] if value else None for key, value in plant_field_info.items()}
 
-            with open(metadata_filename, "w") as file:
-                json.dump(combined_dict, file, indent=4, default=str)
+        plant_field_info_dict = self._custom_decoder(plant_field_info_dict) # deal with NaN values and en dash
+        plant_field_info_dict = self._replace_en_dash(plant_field_info_dict) # deal with en dash
+
+        return plant_field_info_dict
+
+    def _get_category(self, image_name: str) -> dict:
+        """
+        This function extracts the category information based on the class ID.
+
+        Parameters:
+            image_name (str): Name of the image.
+
+        Returns:
+            dict: Extracted category information.
+        """
+        class_id = self.get_class_id(image_name)
+
+        for _, species_value in self.species_info['species'].items():
+            if species_value['class_id'] == class_id:
+                category = species_value
+                category.pop('alias') if 'alias' in category else None # delete class_id in the final metadata
+                break
             
-            log.info(f"Metadata saved to {metadata_filename}.")
-            
-        except Exception as e:
-            log.error(f"Failed to extract metadata for {image_path}: {e}", exc_info=True)
+        return category
+
+    def _get_exif_data(self, exif_data: dict) -> dict:
+        """
+        This function extracts the relevant EXIF data.
+
+        Parameters:
+            exif_data (dict): Extracted EXIF data.
+
+        Returns:
+            dict: Extracted relevant EXIF data.
+        """
+        exif_data_list = [
+            "ExifImageWidth", "ExifImageLength", "Make", "Model", "Software", "DateTime", "ExposureTime", "FNumber", "ExposureProgram", "ISOSpeedRatings", 
+            "RecommendedExposureIndex", "ExifVersion", "BrightnessValue", "MaxApertureValue", "LightSource", "Flash", "FocalLength", "ExposureMode", 
+            "WhiteBalance", "FocalLengthIn35mmFilm", "Contrast", "Saturation", "Sharpness", "LensModel", "LensSpecification", "BodySerialNumber"
+        ]
+
+        exif_data_imp_dict = {key: exif_data[key] for key in exif_data_list if key in exif_data}
+
+        exif_data_imp_dict = {key.replace("ExifImageWidth", "ImageWidth"): value for key, value in exif_data_imp_dict.items()}
+        exif_data_imp_dict = {key.replace("ExifImageLength", "ImageLength"): value for key, value in exif_data_imp_dict.items()}
+
+        exif_data_imp_dict = self._custom_decoder(exif_data_imp_dict) # deal with NaN values and en dash
+        exif_data_imp_dict = self._replace_en_dash(exif_data_imp_dict) # deal with en dash
+
+        return exif_data_imp_dict
+
+    def _get_bbox_xywh(self, detection_results: dict) -> dict:
+        """
+        This function extracts the bounding box coordinates.
+
+        Parameters:
+            detection_results (dict): Detection results.
+
+        Returns:
+            dict: Extracted bounding box coordinates.
+        """
+        if detection_results is not None:
+            bbox_xywh = [detection_results["bbox"]["x_min"], detection_results["bbox"]["y_min"], detection_results["bbox"]["x_max"], detection_results["bbox"]["y_max"]]
+            bbox_xywh_dict = {"bbox_xywh": bbox_xywh}
+        else:
+            bbox_xywh_dict = {"bbox_xywh": None} 
+
+        return bbox_xywh_dict
 
     @staticmethod
     def _custom_decoder(data: dict) -> dict:
@@ -414,28 +462,24 @@ class ProcessDetections:
         Returns:
             None
         """
-        try:
-            image = self.image_loader.read_image(image_path)
-            if image is None:
-                return
+        image = self.image_loader.read_image(image_path)
+        if image is None:
+            return
 
-            class_id = self.metadata_extractor.get_class_id(image_path.name)
-            if not class_id:
-                return
-            
+        class_id = self.metadata_extractor.get_class_id(image_path.name)
+        if not class_id:
+            return
+        
+        detection_results = self.weed_detector.detect_weeds(image)
+        if detection_results is not None:
             detection_results = self.weed_detector.detect_weeds(image)
-            if detection_results is not None:
-                detection_results = self.weed_detector.detect_weeds(image)
-                detection_results["image_id"] = Path(image_path).stem
-                detection_results["class_id"] = class_id
-            else: 
-                log.warning(f"No detection.")
-            
-            exif_data = self.metadata_extractor.get_exif_data(str(image_path))
-            self.metadata_extractor.save_image_metadata(str(image_path), detection_results, self.image_metadata_dir, exif_data)
-
-        except Exception as e:
-            log.error(f"Error processing image {image_path}: {e}", exc_info=True)
+            detection_results["image_id"] = Path(image_path).stem
+            detection_results["class_id"] = class_id
+        else: 
+            log.warning(f"No detection.")
+        
+        exif_data = self.metadata_extractor.get_exif_data(str(image_path))
+        self.metadata_extractor.save_image_metadata(str(image_path), detection_results, self.image_metadata_dir, exif_data)
 
     def process_all_images(self) -> None:
         """
