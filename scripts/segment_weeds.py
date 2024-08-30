@@ -2,25 +2,19 @@ import os
 import json
 import math
 import logging
-import random
 import cv2
-import yaml
 import numpy as np
 import torch
 import torch.multiprocessing as mp
 
 from pathlib import Path
-from datetime import datetime
 from typing import List, Tuple
 from concurrent.futures import ProcessPoolExecutor
 from omegaconf import DictConfig
-from skimage.measure import regionprops
-from skimage.morphology import remove_small_holes, label, remove_small_objects
-from skimage.morphology import disk, dilation, erosion
-from skimage.filters import gaussian
+from skimage.morphology import remove_small_holes,  remove_small_objects
 from segment_anything_hq import sam_model_registry, SamPredictor
 
-logging.basicConfig(level=logging.INFO)
+
 log = logging.getLogger(__name__)
 
 device = "cuda"
@@ -647,8 +641,7 @@ def main(cfg: DictConfig) -> None:
         sam_checkpoint=cfg.data.sam_hq_checkpoint
     )
 
-    multiprocess = False
-    if multiprocess:
+    if cfg.segment_weeds.multiprocess:
         log.info("Starting concurrent processing")
         process_concurrently(directory_initializer, processor)
     else:
