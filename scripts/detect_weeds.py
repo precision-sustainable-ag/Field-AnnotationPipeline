@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import math
 import exifread
-
+import copy 
 from PIL import Image
 from PIL.ExifTags import TAGS
 from pathlib import Path
@@ -171,9 +171,7 @@ class MetadataExtractor:
             return None
         
         species = [str(species).lower() for species in species_series][0]
-
         class_id = self._find_class_id(species)
-
         log.info(f"Class ID: {class_id}")
 
         return class_id
@@ -188,13 +186,17 @@ class MetadataExtractor:
         Returns:
             str: Class ID of the species if found; otherwise, returns None.
         """
-        for _, values in self.species_info['species'].items():
-            if 'alias' in values: # if different common names exists, use alias to match
+        species_info_copy = self.species_info['species'] 
+        
+        # Loop through the species_info dictionary to find the class_id comparing the common_name from the azure table to the species_info dictionary
+        for _, values in species_info_copy.items():
+            if values["common_name"].lower() == species:
+                return values["class_id"]
+            elif 'alias' in values: # if different common names exists, use alias to match
                 if values['alias'].lower() == species:
                     return values['class_id']
-            elif 'alias' not in values and values['common_name'].lower() == species:
-                return values['class_id']
         
+        log.error(f"Species '{species}' not found in the species info. Returning None.")
         return None
     
     @staticmethod
@@ -339,7 +341,10 @@ class MetadataExtractor:
         """
         class_id = self.get_class_id(image_name)
 
-        for _, species_value in self.species_info['species'].items():
+        # Make a copy of the species_info dictionary to avoid modifying the original
+        species_info_copy = copy.deepcopy(self.species_info['species'])
+
+        for _, species_value in species_info_copy.items():
             if species_value['class_id'] == class_id:
                 category = species_value
                 category.pop('alias') if 'alias' in category else None # delete class_id in the final metadata
