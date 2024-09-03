@@ -591,7 +591,7 @@ def process_sequentially(directory_initializer: DirectoryInitializer, processor:
         log.info(f"Processing image: {image_path}")
         json_path = str(directory_initializer.metadata_dir / f"{image_path.stem}.json")
         input_paths = (image_path, json_path)
-        # processor.process_image(input_paths)
+        processor.process_image(input_paths)
         processor.save_cutout(input_paths)
 
 def process_concurrently(directory_initializer: DirectoryInitializer, processor: SingleImageProcessor) -> None:
@@ -614,7 +614,7 @@ def process_concurrently(directory_initializer: DirectoryInitializer, processor:
     max_workers = int(len(os.sched_getaffinity(0)) / 5)
     log.info(f"Using {max_workers} workers for multiprocessing")
     with ProcessPoolExecutor(max_workers=max_workers, mp_context=mp.get_context('spawn')) as executor:
-        # executor.map(processor.process_image, input_paths)
+        executor.map(processor.process_image, input_paths)
         executor.map(processor.save_cutout, input_paths)
 
 def main(cfg: DictConfig) -> None:
