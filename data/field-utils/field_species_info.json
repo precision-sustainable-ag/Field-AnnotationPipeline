@@ -124,7 +124,7 @@
             "genus": "Xanthium",
             "species": "strumarium",
             "common_name": "Cocklebur",
-            "alias": "Common Cocklebur",
+            "alias": "Common cocklebur",
             "authority": "Linnaeus",
             "growth_habit": "forb/herb",
             "duration": "annual",
@@ -1467,7 +1467,36 @@
                 49,
                 127
             ]
+        },
+        "LOPEM2": {
+            "class_id": 52,
+            "USDA_symbol": "LOPEM2",
+            "EPPO": "LOLMU",
+            "group": "monocot",
+            "class": "Liliopsida",
+            "subclass": "Commelinidae",
+            "order": "Cyperales",
+            "family": "Poaceae",
+            "genus": "Lolium",
+            "species": "perenne",
+            "common_name": "ryegrass",
+            "authority": "Linnaeus",
+            "growth_habit": "Graminoid",
+            "duration": "annual perenial",
+            "collection_location": "MD",
+            "category": "summer weed",
+            "collection_timing": "summer",
+            "multi_species_USDA_symbol": null,
+            "link": "https://plants.usda.gov/home/plantProfile?symbol=COAR4",
+            "note": null,
+            "hex": "#b5317f",
+            "rgb": [
+                181,
+                49,
+                127
+            ]
         }
+
     },
     "Notes": {
         "1": "USDA symbols are used as species index key.",
