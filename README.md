@@ -33,8 +33,8 @@ After installing Conda, you can set up an environment for this project using an 
 
 The script requires a configuration file (`conf/config.yaml`) that specifies the paths for long-term storage and the report directory. Key configuration parameters include:
 
-- `data.longterm_storage`: Path to the directory where the image batches are stored long-term.
-- `reports`: Path to the directory where the generated CSV reports will be saved.
+- `cfg.data.longterm_storage`: Path to the directory where the image batches are stored long-term.
+- `cfg.reports`: Path to the directory where the generated CSV reports will be saved.
 
 
 ### Output
@@ -65,3 +65,5 @@ The script relies on a configuration file (`conf/config.yaml`) for its operation
 - `data.temp_dir`: Path to the temporary directory where batches are downloaded for processing.
 - `download_batch.download_limit`: The maximum number of batches to download in a single run, includes batches that have already been downloaded.
 - `download_batch.use_multithreading`: Enables or disables multithreading for image downloading within a batch.
+
+TODO: add outputs for this script
