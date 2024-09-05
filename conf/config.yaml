@@ -10,8 +10,14 @@ hydra:
   output_subdir: ${hydra.run.dir}/hydra
 
 pipeline:
+  # - find_unprocessed_batches
+  - download_batch
   # - detect_weeds
-  - segment_weeds
+  # - segment_weeds
+
+download_batch:
+  use_multithreading: True
+  download_limit: 4
 
 segment_weeds:
   multiprocess: True
@@ -22,8 +28,21 @@ general:
 
 pipeline_keys: ${general.workdir}/keys/authorized_keys.yaml
 
+reports: ${general.workdir}/reports
+
 data:
   datadir: ${general.workdir}/data
+  longterm_storage: /mnt/research-projects/r/raatwell/longterm_images3/field-batches/
+  temp_dir: ${data.datadir}/temp
+  # temp_image_dir: ${data.datadir}/images_testing/test_images
+  temp_image_dir: ${data.datadir}/images_testing/subset/input
+  # temp_output_dir: ${data.datadir}/images_testing/test_images_output
+  temp_output_dir: ${data.datadir}/images_testing/subset/output/output_sam_hq
+  species_info: ${data.datadir}/field-utils/species_info.json
+  field_species_info: ${data.datadir}/field-utils/field_species.json
+
+  specific_data: ${data.datadir}/field-utils/specific_data.json #need a better name
+
   temp_image_dir: ${data.datadir}/images_testing/test_images/input
   temp_output_dir: ${data.datadir}/images_testing/test_images/output
   image_metadata_dir: ${data.datadir}/images_testing/test_images/metadata
