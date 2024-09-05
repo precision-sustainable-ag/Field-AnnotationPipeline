@@ -1,0 +1,54 @@
+broad_morphology:
+  - 1 # Palmer amaranth
+  - 3 # Sicklepod
+  - 4 # Cocklebur
+  - 9 # Waterhemp
+  - 14 # Common sunflower
+  - 16 # Johnsongrass
+  - 17 # Soybean
+  - 18 # Smooth pigweed
+  - 19 # Common lambsquarters
+  - 21 # Jimsonweed
+  - 22 # Velvetleaf
+  - 25 # Horseweed
+  - 26 # Maize
+  - 27 # Unknown
+  - 28 # Colorchecker
+  - 29 # Hairy vetch
+  - 30 # Winter pea
+  - 31 # Crimson clover
+  - 32 # Red clover
+  - 33 # Mustards
+  - 34 # Cultivated radish
+  - 41 # upland cotton
+  - 44 # Pitted morningglory
+  - 45 # Spiny amaranth
+  - 46 # Desert horsepurslane
+  - 47 # Horphornbeam copperleaf
+  - 50 # Giant ragweed
+
+sparse_morphology:
+  - 2 # Common ragweed
+  - 5 # Large crabgrass
+  - 6 # Goosegrass
+  - 7 # Broadleaf signalgrass
+  - 8 # Purple nutsedge
+  - 10 # Barnyardgrass
+  - 11 # Junglerice
+  - 12 # Texas panicum
+  - 13 # Kochia
+  - 15 # Ragweed parthenium
+  - 20 # Fall panicum
+  - 23 # Yellow foxtail
+  - 24 # Giant foxtail
+  - 35 # Cereal rye
+  - 36 # Triticale
+  - 37 # Winter wheat
+  - 38 # Oats
+  - 39 # Barley
+  - 40 # Black oats
+  - 42 # Sprawling signalgrass
+  - 43 # Prickly sida
+  - 48 # Yellow nutsedge
+  - 49 # Giant ragweed
+

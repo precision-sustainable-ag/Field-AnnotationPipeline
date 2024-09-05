@@ -1,19 +1,29 @@
 # Field-AnnotationPipeline
-This repo automates semantic labels and bounding boxes for Field imagery, within the broader Ag Image Repository, focusing on real-world agricultural conditions essential for training deep learning models.
 
-This repository is dedicated to the development of a specialized image processing pipeline, designed exclusively for handling field imagery within the broader Ag Image Repository. It includes detailed metadata related to agricultural environments such as weeds, crops, and cover crops. Our pipeline focuses on automating the creation of semantic labels and bounding box annotations while leveraging extensive environmental metadata to enhance accuracy. Focused solely on images captured directly in agricultural fields, this project provides real-world conditions that are essential for effectively training deep learning models.
+This repository automates the creation of semantic labels and bounding boxes for field imagery within the broader Ag Image Repository, focusing on real-world agricultural conditions essential for training deep learning models.
 
-### Setting Up Your Environment Using an Environment File
-After installing Conda, you can set up an environment for this project using an environment file, which specifies all necessary dependencies. Here's how:
+## Introduction
 
-1. Clone this repository to your local machine.
-2. Navigate to the repository directory in your terminal.
-3. Locate the `environment.yaml` file in the repository. This file contains the list of packages needed for the project.
-4. Create a new Conda environment by running the following command:
-   ```bash
-   conda env create -f environment.yaml
-   ```
-   This command reads the `environment.yaml` file and creates an environment with the name and dependencies specified within it.
+The `Field-AnnotationPipeline` is a specialized image processing pipeline designed exclusively for handling field imagery within the Ag Image Repository. This pipeline automates the generation of semantic labels and bounding box annotations for various agricultural environments, including weeds, crops, and cover crops. By leveraging extensive environmental metadata, the pipeline enhances the accuracy of annotations, providing real-world conditions crucial for effectively training deep learning models.
+
+## Installation
+
+To set up the environment, follow these steps:
+
+1. Clone the repository:
+    ```bash
+    git clone https://github.com/precision-sustainable-ag/Field-AnnotationPipeline.git
+    ```
+
+2. Install dependencies using the provided `environment.yaml`:
+    ```bash
+    conda env create -f environment.yaml
+    conda activate field-annotation-pipeline
+    ```
+
+## Usage
+
+Once the environment is set up, you can start using the pipeline to annotate your field imagery.
 
 5. Once the environment is created, activate it with:
    ```bash
