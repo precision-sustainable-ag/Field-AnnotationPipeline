@@ -11,8 +11,8 @@ hydra:
 
 pipeline:
   # - find_unprocessed_batches
-  - download_batch
-  # - detect_weeds
+  # - download_batch
+  - detect_weeds
   # - segment_weeds
 
 download_batch:
@@ -34,19 +34,10 @@ data:
   datadir: ${general.workdir}/data
   longterm_storage: /mnt/research-projects/r/raatwell/longterm_images3/field-batches/
   temp_dir: ${data.datadir}/temp
-  # temp_image_dir: ${data.datadir}/images_testing/test_images
-  temp_image_dir: ${data.datadir}/images_testing/subset/input
-  # temp_output_dir: ${data.datadir}/images_testing/test_images_output
-  temp_output_dir: ${data.datadir}/images_testing/subset/output/output_sam_hq
-  species_info: ${data.datadir}/field-utils/species_info.json
-  field_species_info: ${data.datadir}/field-utils/field_species.json
-
-  specific_data: ${data.datadir}/field-utils/specific_data.json #need a better name
-
+  field_species_info: ${data.datadir}/field-utils/field_species_info.json
   temp_image_dir: ${data.datadir}/images_testing/test_images/input
   temp_output_dir: ${data.datadir}/images_testing/test_images/output
   image_metadata_dir: ${data.datadir}/images_testing/test_images/metadata
-  species_info: ${data.datadir}/field-utils/field_species_info.json
   field_species_name: ${data.datadir}/field-utils/field_species_name.json
   path_yolo_model: ${data.datadir}/models/weed_detection/weights/best.pt
   sam_checkpoint: ${data.datadir}/models//sam/sam_checkpoints/sam_vit_b_01ec64.pth 
