@@ -7,6 +7,8 @@ import pandas as pd
 import math
 import exifread
 import copy 
+import os
+
 from PIL import Image
 from PIL.ExifTags import TAGS
 from pathlib import Path
@@ -72,6 +74,7 @@ class WeedDetector:
             log.warning("No detection found.")
             return None
 
+        # Extract the bounding box coordinates
         bbox = results[0].boxes.xyxy.tolist()[0]
         x_min, y_min, x_max, y_max = map(int, bbox)
         detection_results = {
@@ -84,7 +87,6 @@ class WeedDetector:
             }
         }
         return detection_results
-
 
 class ImageProcessor:
     """
@@ -141,13 +143,13 @@ class MetadataExtractor:
             None
         """
         self.csv_path = cfg.data.merged_tables_permanent
-        self.species_info_path = cfg.data.species_info
+        self.species_info_path = cfg.data.field_species_info
 
+        # Load the broad_sprase_morph_species dictionary
         with open(cfg.morphology_species, 'r') as f:
             self.broad_sprase_morph_species = yaml.safe_load(f)
 
-        self.metadata_dir = Path(cfg.data.image_metadata_dir)
-        
+        # Load the merged data tables CSV and species info JSON
         self.df = pd.read_csv(self.csv_path, low_memory=False)
         assert not self.df.empty, "Merged data tables CSV is empty."
 
@@ -165,7 +167,9 @@ class MetadataExtractor:
             str: Class ID of the species if found; otherwise, returns None.
         """
         log.info(f"Loading image data for {image_name}.")
-        species_series = self.df[self.df["Name"] == image_name]["Species"]
+
+        # Find the species for the given image
+        species_series = self.df[self.df["Name"].str.lower() == image_name.lower()]["Species"]
         if species_series.empty:
             log.warning(f"Species data not found for image: {image_name}")
             return None
@@ -241,7 +245,7 @@ class MetadataExtractor:
         # imgmeta = ImageMetadata(**meta)
         return filtered_exif_data
         
-    def save_image_metadata(self, image_path: str, detection_results: dict, output_dir: Path, exif_data: dict) -> None:
+    def save_image_metadata(self, image_path: str, detection_results: dict, image_metadata_dir: Path, exif_data: dict) -> None:
         """
         This function saves the metadata extracted from the image.
         
@@ -256,8 +260,9 @@ class MetadataExtractor:
         """
         log.info("Extracting metadata")
 
+        # Extract the image information, plant field information, category, and relevant EXIF data
         image_name = Path(image_path).name
-        image_info = self.df[self.df["Name"] == image_name]
+        image_info = self.df[self.df["Name"].str.lower() == image_name.lower()]
         if image_info.empty:
             raise ValueError(f"Image '{image_name}' not found in the dataframe.")
 
@@ -266,6 +271,7 @@ class MetadataExtractor:
         category = self._get_category(image_name)
         exif_data_imp_dict = self._get_exif_data(exif_data)
 
+        # Combine the extracted metadata into a single dictionary
         combined_dict = {
             "image_info": image_info_dict,
             "plant_field_info": plant_field_info_dict,
@@ -274,9 +280,8 @@ class MetadataExtractor:
             "exif_meta": exif_data_imp_dict
         }
 
-        metadata_filename = self.metadata_dir / f"{Path(image_path).stem}.json"
-        self.metadata_dir.mkdir(exist_ok=True, parents=True)
-
+        # Save the metadata to a JSON file
+        metadata_filename = image_metadata_dir / f"{Path(image_path).stem}.json"
         with open(metadata_filename, "w") as file:
             json.dump(combined_dict, file, indent=4, default=str)
         
@@ -293,6 +298,8 @@ class MetadataExtractor:
         Returns:
             dict: Extracted image information.
         """
+
+        # Extract the relevant dataf from the image_info saved on the tablet when the image was taken
         image_info_list = [
             "Name", "Extension", "ImageURL", "UploadDateTimeUTC", "CameraInfo_DateTime", "SizeMiB", "HasMatchingJpgAndRaw", "ImageIndex", "UsState"
         ]
@@ -316,6 +323,7 @@ class MetadataExtractor:
         Returns:
             dict: Extracted plant field information.
         """
+        # Extract the relevant columns from the plant_field_info
         plant_field_info_list = [
             "PlantType", "CloudCover", "GroundResidue", "GroundCover", "CoverCropFamily", "GrowthStage", "CottonVariety", "CropOrFallow",
             "CropTypeSecondary", "Species", "Height", "SizeClass", "FlowerFruitOrSeeds"
@@ -362,6 +370,7 @@ class MetadataExtractor:
         Returns:
             dict: Extracted relevant EXIF data.
         """
+        # Extract the relevant EXIF data
         exif_data_list = [
             "ExifImageWidth", "ExifImageLength", "Make", "Model", "Software", "DateTime", "ExposureTime", "FNumber", "ExposureProgram", "ISOSpeedRatings", 
             "RecommendedExposureIndex", "ExifVersion", "BrightnessValue", "MaxApertureValue", "LightSource", "Flash", "FocalLength", "ExposureMode", 
@@ -432,7 +441,6 @@ class MetadataExtractor:
                 data[key] = MetadataExtractor._replace_en_dash(value)
         return data
 
-
 class ProcessDetections:
     """
     A class to orchestrate the weed detection and metadata extraction process.
@@ -450,12 +458,21 @@ class ProcessDetections:
         """
         self.output_dir = Path(cfg.data.temp_output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
-        
-        self.image_metadata_dir = Path(cfg.data.image_metadata_dir)
-        self.image_loader = ImageLoader(Path(cfg.data.temp_image_dir))
+
         self.weed_detector = WeedDetector(cfg.data.path_yolo_model)
         self.image_processor = ImageProcessor()
         self.metadata_extractor = MetadataExtractor(cfg)
+
+        # Loop through the batches
+        batches = list(Path(cfg.data.temp_dir).iterdir())
+        for batch in batches:
+            image_dir = Path(batch /"developed-images")
+            self.image_loader = ImageLoader(image_dir)
+            for image_path in image_dir.iterdir():
+                if image_path.suffix.lower() in {".jpg", ".jpeg", ".png", ".JPG", ".JPEG"}:
+                    self.image_path = Path(image_path)
+                    self.process_image(self.image_path)
+
 
     def process_image(self, image_path: Path) -> None:
         """
@@ -467,24 +484,35 @@ class ProcessDetections:
         Returns:
             None
         """
-        image = self.image_loader.read_image(image_path)
+        image = self.image_loader.read_image(self.image_path)
+
+        image_metadata_dir = Path(os.path.join(os.path.dirname(os.path.dirname(image_path)), 'metadata')) # save metadata in the same batch as the image
+
+        # Create the metadata directory if it doesn't exist
+        os.makedirs(image_metadata_dir, exist_ok=True)
+
         if image is None:
+            log.warning(f"No image present for processing.")
             return
 
         class_id = self.metadata_extractor.get_class_id(image_path.name)
         if not class_id:
+            log.warning(f"Class_id not found.")
             return
         
+        # Detect weeds in the image
         detection_results = self.weed_detector.detect_weeds(image)
         if detection_results is not None:
             detection_results = self.weed_detector.detect_weeds(image)
-            detection_results["image_id"] = Path(image_path).stem
+            detection_results["image_id"] = Path(self.image_path).stem
             detection_results["class_id"] = class_id
         else: 
             log.warning(f"No detection.")
         
-        exif_data = self.metadata_extractor.get_exif_data(str(image_path))
-        self.metadata_extractor.save_image_metadata(str(image_path), detection_results, self.image_metadata_dir, exif_data)
+        exif_data = self.metadata_extractor.get_exif_data(str(self.image_path))
+
+        # Save the image metadata
+        self.metadata_extractor.save_image_metadata(str(self.image_path), detection_results, image_metadata_dir, exif_data)
 
     def process_all_images(self) -> None:
         """
@@ -510,5 +538,5 @@ def main(cfg: DictConfig) -> None:
     """
     log.info(f"Starting {cfg.general.task}")
     process_weeds = ProcessDetections(cfg)
-    process_weeds.process_all_images()
+    # process_weeds.process_all_images()
     log.info(f"{cfg.general.task} completed.")

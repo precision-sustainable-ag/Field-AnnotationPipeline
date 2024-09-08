@@ -37,7 +37,6 @@ data:
   field_species_info: ${data.datadir}/field-utils/field_species_info.json
   temp_image_dir: ${data.datadir}/images_testing/test_images/input
   temp_output_dir: ${data.datadir}/images_testing/test_images/output
-  image_metadata_dir: ${data.datadir}/images_testing/test_images/metadata
   field_species_name: ${data.datadir}/field-utils/field_species_name.json
   path_yolo_model: ${data.datadir}/models/weed_detection/weights/best.pt
   sam_checkpoint: ${data.datadir}/models//sam/sam_checkpoints/sam_vit_b_01ec64.pth 
