@@ -266,7 +266,7 @@ class MetadataExtractor:
         if image_info.empty:
             raise ValueError(f"Image '{image_name}' not found in the dataframe.")
 
-        image_info_dict = self._get_image_info(image_info, image_name)
+        image_info_dict = self._get_image_info(image_info)
         plant_field_info_dict = self._get_plant_field_info(image_info)
         category = self._get_category(image_name)
         exif_data_imp_dict = self._get_exif_data(exif_data)
@@ -285,15 +285,14 @@ class MetadataExtractor:
         with open(metadata_filename, "w") as file:
             json.dump(combined_dict, file, indent=4, default=str)
         
-        log.info(f"Metadata saved to {metadata_filename}.")
+        log.info(f"Metadata saved to {metadata_filename}.\n\n\n")
 
-    def _get_image_info(self, image_info: pd.DataFrame, image_name: str) -> dict:
+    def _get_image_info(self, image_info: pd.DataFrame) -> dict:
         """
         This function extracts the image information from the dataframe.
 
         Parameters:
             image_info (pd.DataFrame): Dataframe containing the image information.
-            image_name (str): Name of the image.
 
         Returns:
             dict: Extracted image information.
@@ -486,7 +485,7 @@ class ProcessDetections:
         """
         image = self.image_loader.read_image(self.image_path)
 
-        image_metadata_dir = Path(os.path.join(os.path.dirname(os.path.dirname(image_path)), 'metadata')) # save metadata in the same batch as the image
+        image_metadata_dir = Path(os.path.join(os.path.dirname(os.path.dirname(image_path)), 'cutouts')) # save metadata in the same batch as the image
 
         # Create the metadata directory if it doesn't exist
         os.makedirs(image_metadata_dir, exist_ok=True)
@@ -514,18 +513,6 @@ class ProcessDetections:
         # Save the image metadata
         self.metadata_extractor.save_image_metadata(str(self.image_path), detection_results, image_metadata_dir, exif_data)
 
-    def process_all_images(self) -> None:
-        """
-        This function processes all images in the specified directory.
-
-        Returns:
-            None
-        """
-        for image_path in self.image_loader.image_dir.iterdir():
-            if image_path.suffix.lower() in {".jpg", ".jpeg", ".png", ".JPG", ".JPEG"}:
-                self.process_image(image_path)
-
-
 def main(cfg: DictConfig) -> None:
     """
     Main function to start the weed detection process.
@@ -538,5 +525,4 @@ def main(cfg: DictConfig) -> None:
     """
     log.info(f"Starting {cfg.general.task}")
     process_weeds = ProcessDetections(cfg)
-    # process_weeds.process_all_images()
     log.info(f"{cfg.general.task} completed.")
