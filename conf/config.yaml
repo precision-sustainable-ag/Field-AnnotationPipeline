@@ -20,7 +20,7 @@ download_batch:
   download_limit: 4
 
 segment_weeds:
-  multiprocess: True
+  multiprocess: False
   
 general:
   task: # Leave empty as placeholder
