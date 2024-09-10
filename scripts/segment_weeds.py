@@ -37,12 +37,11 @@ class SingleImageProcessor:
         log.info("Initializing SingleImageProcessor")
         self.metadata_dir = Path(metadata_dir)
         self.output_dir = Path(output_dir)
-        self.visualization_label_dir = self.output_dir / "vis_masks" 
 
         self.broad_spceies = cfg.morphology.broad_morphology
         self.sparse_spceies = cfg.morphology.sparse_morphology
 
-        for output_dir in [self.output_dir, self.visualization_label_dir]:
+        for output_dir in [self.output_dir]:
             output_dir.mkdir(exist_ok=True, parents=True)
 
         log.info("Loading SAM model")
@@ -56,16 +55,18 @@ class SingleImageProcessor:
         Parameters:
             input_paths (Tuple[str, str]): 
                 - Path to the image file.
-                - Path to the JSON file with annotations.
+                - Path to the save cutouts, cropouts, and masks.
 
         Returns:
             Tuple[dict, dict]: 
                 - JSON data dictionary.
                 - Bounding box information with `image_id`, `class_id`, `x_min`, `y_min`, `x_max`, `y_max`, `width`, and `height`.
         """
-        image_path, json_path = input_paths
+        image_path, _ = input_paths
+        json_path = Path(image_path).parent.parent / "cutouts" / f"{Path(image_path).stem}.json"
         log.info(f"Processing image: {image_path}")
-        
+
+        # Check if the metadata for the image exists
         if Path(json_path).exists():
             with open(json_path, 'r') as f:
                 data = json.load(f)
@@ -100,7 +101,9 @@ class SingleImageProcessor:
         Saves the final cutout, cropped image, and mask.
 
         Parameters:
-            input_paths (Tuple[str, str]): Paths to the input image and JSON file.
+            input_paths (Tuple[str, str]): 
+                - Path to the image file.
+                - Path to the save cutouts, cropouts, and masks.
         
         Returns:
             None
@@ -108,9 +111,10 @@ class SingleImageProcessor:
         log.info("Starting process to save cropout, final mask, and cutout.")
         
         if self.process_image(input_paths) is not None:
-            data, _bbox = self.process_image(input_paths)
+            _, _bbox = self.process_image(input_paths)
             # Process image to get bounding box and data
-            image_path, _ = input_paths
+            image_path, save_dir = input_paths
+
             # Read the image
             image = self._read_image(image_path)
             # Create and process masks
@@ -122,10 +126,7 @@ class SingleImageProcessor:
             class_masked_image_3d = np.repeat(class_masked_image[:, :, np.newaxis], 3, axis=2).astype(np.uint8)
             
             # Directory setup for saving outputs
-            class_id = data["category"]["class_id"]
-            save_class_dir = Path(self.output_dir, f"{class_id}")
-            save_class_dir.mkdir(exist_ok=True, parents=True)
-            log.info(f"Output directory created at: {save_class_dir}")
+            # save_dir = Path(image_path).parent.parent / "cutouts"
             
             # Create the final cutout image
             final_cutout_bgr = np.where(class_masked_image_3d != 255, image, 0)
@@ -136,19 +137,19 @@ class SingleImageProcessor:
             image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
             image_cropped = self._crop_image(image_rgb, _bbox['y_min'], _bbox['y_max'], _bbox['x_min'], _bbox['x_max'])
             cropout_name = Path(image_path).stem + '_cropout.png'
-            cv2.imwrite(str(save_class_dir / cropout_name), image_cropped.astype(np.uint8), [cv2.IMWRITE_PNG_COMPRESSION, 1])
+
+            cv2.imwrite(str(save_dir / cropout_name), image_cropped.astype(np.uint8), [cv2.IMWRITE_PNG_COMPRESSION, 1])
             log.info(f"Cropped image saved as: {cropout_name}")
             
             # Save the final mask
             class_masked_image_cropped = np.where(class_masked_image_cropped == 255, 0, class_masked_image_cropped)
             final_mask_name = Path(image_path).stem + '_mask.png'
-            self.save_compressed_image(masked_image, self.visualization_label_dir / final_mask_name)
-            cv2.imwrite(str(save_class_dir / final_mask_name), class_masked_image_cropped.astype(np.uint8), [cv2.IMWRITE_PNG_COMPRESSION, 1])
+            cv2.imwrite(str(save_dir / final_mask_name), class_masked_image_cropped.astype(np.uint8), [cv2.IMWRITE_PNG_COMPRESSION, 1])
             log.info(f"Final mask saved as: {final_mask_name}")
 
             # Save the final cutout
             cutout_name = Path(image_path).stem + '_cutout.png'
-            cv2.imwrite(str(save_class_dir / cutout_name), final_cutout_rgb.astype(np.uint8), [cv2.IMWRITE_PNG_COMPRESSION, 1])
+            cv2.imwrite(str(save_dir / cutout_name), final_cutout_rgb.astype(np.uint8), [cv2.IMWRITE_PNG_COMPRESSION, 1])
             log.info(f"Final cutout saved as: {cutout_name}")
         else:
             log.error(f"Data or _bbox is None, skipping image processing.")
@@ -550,72 +551,90 @@ class SingleImageProcessor:
             masked_image_rgba[full_mask == 1, 3] = int(alpha * 255)
             class_masked_image[full_mask == 1] = _bbox['class_id']
 
-class DirectoryInitializer:
-    def __init__(self, cfg: DictConfig) -> None:
-        """
-        The DirectoryInitializer class initializes
+def directory_initializer(cfg: DictConfig) -> List[Path]:
+    """
+    Initializes directories and retrieves all image paths from the given configuration.
 
-        Parameters:
-            cfg (DictConfig): The configuration object.
+    Parameters:
+        cfg (DictConfig): The configuration object containing paths for data directories.
 
-        Returns:
-            None
-        """
-        self.image_dir = Path(cfg.data.temp_image_dir)
-        self.metadata_dir = Path(cfg.data.image_metadata_dir)
-        self.output_dir = Path(cfg.data.temp_output_dir)
-        self.output_dir.mkdir(parents=True, exist_ok=True)
+    Returns:
+        Tuple[List[Path], Path, Path]: 
+            - A list of Paths pointing to all `.jpg` images found in the "developed-images" subdirectory of each batch.
+            - The output directory Path where processed cutouts will be saved.
+            - The metadata directory Path where metadata files are stored.
+    """
+    batches = list(Path(cfg.data.temp_dir).iterdir())
+    
+    all_images = []
 
-    def get_images(self) -> List[Path]:
-        """
-        Get the list of images from the image directory.
-
-        Returns:
-            List[Path]: List of image paths.
-        """
-        return sorted([x for x in self.image_dir.glob("*.JPG")])
-
-def process_sequentially(directory_initializer: DirectoryInitializer, processor: SingleImageProcessor) -> None:
+    output_dir = None
+    metadata_dir = None
+    
+    for batch in batches:
+        image_dir = Path(batch / "developed-images")
+        
+        if image_dir.exists():
+            images = list(image_dir.glob("*.jpg"))
+            all_images.extend(images)
+        output_dir = Path(batch / "cutouts")
+        metadata_dir = Path(batch / "cutouts")
+    
+    return all_images, output_dir, metadata_dir
+        
+def process_sequentially(directory_initializer, processor: "SingleImageProcessor", cfg: DictConfig) -> None:
     """
     This function processes a batch of images sequentially.
 
     Parameters:
-        directory_initializer (DirectoryInitializer): The DirectoryInitializer object.
+        directory_initializer (callable): A function that initializes and returns image paths.
         processor (SingleImageProcessor): The SingleImageProcessor object.
 
     Returns:
         None
     """
-    imgs = directory_initializer.get_images()
+    imgs, _, _ = directory_initializer(cfg)
+    
     for image_path in imgs:
         log.info(f"Processing image: {image_path}")
-        json_path = str(directory_initializer.metadata_dir / f"{image_path.stem}.json")
-        input_paths = (image_path, json_path)
+        save_dir = Path(image_path).parent.parent / "cutouts"
+        input_paths = (image_path, save_dir)
         processor.process_image(input_paths)
         processor.save_cutout(input_paths)
 
-def process_concurrently(directory_initializer: DirectoryInitializer, processor: SingleImageProcessor) -> None:
+def process_concurrently(directory_initializer, processor: "SingleImageProcessor", cfg: DictConfig) -> None:
     """
     This function processes a batch of images concurrently using multiprocessing.
 
     Parameters:
-        directory_initializer (DirectoryInitializer): The DirectoryInitializer object.
+        directory_initializer (callable): A function that initializes and returns image paths.
         processor (SingleImageProcessor): The SingleImageProcessor object.
+        cfg (DictConfig): The configuration object containing paths and settings.
 
     Returns:
         None
     """
-    imgs = directory_initializer.get_images()
-    input_paths = [
-        (str(imgpath), str(directory_initializer.metadata_dir / f"{imgpath.stem}.json"))
-        for imgpath in imgs
-    ]
-    
-    max_workers = int(len(os.sched_getaffinity(0)) / 5)
+
+    #### Multiprocessing not working
+
+    # Initialize directories and get image paths
+    imgs, _, _ = directory_initializer(cfg)
+
+    # Prepare input paths for each image
+    input_paths = []
+    for image_path in imgs:
+        log.info(f"Processing image: {image_path}")
+        save_dir = image_path.parent.parent / "cutouts"
+        input_paths.append((image_path, save_dir))
+
+    # Set the number of workers based on available CPU cores
+    max_workers = max(1, int(len(os.sched_getaffinity(0)) / 5))
     log.info(f"Using {max_workers} workers for multiprocessing")
+
+    # Process images concurrently
     with ProcessPoolExecutor(max_workers=max_workers, mp_context=mp.get_context('spawn')) as executor:
-        executor.map(processor.process_image, input_paths)
-        executor.map(processor.save_cutout, input_paths)
+        executor.map(lambda paths: processor.process_image(paths), input_paths)
+        executor.map(lambda paths: processor.save_cutout(paths), input_paths)
 
 def main(cfg: DictConfig) -> None:
     """
@@ -628,10 +647,8 @@ def main(cfg: DictConfig) -> None:
         None
     """
     log.info("Starting segmentation.")
-    directory_initializer = DirectoryInitializer(cfg)
-    imgs = directory_initializer.get_images()
-    output_dir = directory_initializer.output_dir
-    metadata_dir = directory_initializer.metadata_dir
+    
+    _, output_dir, metadata_dir = directory_initializer(cfg)
 
     processor = SingleImageProcessor(
         cfg=cfg,
@@ -643,7 +660,7 @@ def main(cfg: DictConfig) -> None:
 
     if cfg.segment_weeds.multiprocess:
         log.info("Starting concurrent processing")
-        process_concurrently(directory_initializer, processor)
+        process_concurrently(directory_initializer, processor, cfg)
     else:
         log.info("Starting sequential processing")
-        process_sequentially(directory_initializer, processor)
+        process_sequentially(directory_initializer, processor, cfg)

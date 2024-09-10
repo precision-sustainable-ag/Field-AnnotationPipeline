@@ -13,7 +13,7 @@ pipeline:
   # - find_unprocessed_batches
   # - download_batch
   - detect_weeds
-  # - segment_weeds
+  - segment_weeds
 
 download_batch:
   use_multithreading: True
