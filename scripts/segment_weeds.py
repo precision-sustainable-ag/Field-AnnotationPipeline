@@ -8,7 +8,7 @@ import torch
 import torch.multiprocessing as mp
 
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Tuple, Dict
 from concurrent.futures import ProcessPoolExecutor
 from omegaconf import DictConfig
 from skimage.morphology import remove_small_holes,  remove_small_objects
@@ -20,157 +20,158 @@ log = logging.getLogger(__name__)
 device = "cuda"
 
 class SingleImageProcessor:
-    def __init__(self, cfg: DictConfig, output_dir: str, metadata_dir: str, model_type: str, sam_checkpoint: str) -> None:
+    def __init__(self, cfg: DictConfig) -> None:
         """
         Initialize the SingleImageProcessor with the configuration and output directories.
 
         Parameters:
             cfg (DictConfig): The configuration object.
-            output_dir (str): The directory where the output files will be saved.
-            metadata_dir (str): The directory where the metadata files are stored.
-            model_type (str): The type of model to use for segmentation.
-            sam_checkpoint (str): The path to the SAM model checkpoint.
-
-        Returns:
-            None
         """
         log.info("Initializing SingleImageProcessor")
-        self.metadata_dir = Path(metadata_dir)
-        self.output_dir = Path(output_dir)
-
+        
         self.broad_spceies = cfg.morphology.broad_morphology
         self.sparse_spceies = cfg.morphology.sparse_morphology
 
-        for output_dir in [self.output_dir]:
-            output_dir.mkdir(exist_ok=True, parents=True)
-
         log.info("Loading SAM model")
-        sam = sam_model_registry[model_type](checkpoint=sam_checkpoint)
+        sam = sam_model_registry[cfg.data.sam_model_type](checkpoint=cfg.data.sam_hq_checkpoint)
         sam.to(device=device)
         self.mask_predictor = SamPredictor(sam)
 
-    def process_image(self, input_paths: Tuple[str, str]) -> Tuple[dict, dict]:
+    def read_metadata(self, json_path: str) -> dict:
+        """
+        Read the metadata from a JSON file.
+
+        Parameters:
+            json_path (str): Path to the JSON file.
+
+        Returns:
+            dict: The JSON data dictionary.
+        """
+        try:
+            with open(json_path, 'r') as f:
+                data = json.load(f)
+            return data
+        except Exception as e:
+            log.exception(f"Error reading metadata from JSON file: {json_path}")
+            return {}
+
+    def process_bbox(self, data: Dict) -> Tuple[dict, dict]:
         """
         Processes an image and its JSON annotations to extract bounding box information.
         Parameters:
             input_paths (Tuple[str, str]): 
                 - Path to the image file.
-                - Path to the save cutouts, cropouts, and masks.
+                - Path to the JSON file with annotations.
 
         Returns:
             Tuple[dict, dict]: 
                 - JSON data dictionary.
                 - Bounding box information with `image_id`, `class_id`, `x_min`, `y_min`, `x_max`, `y_max`, `width`, and `height`.
         """
-        image_path, _ = input_paths
-        json_path = Path(image_path).parent.parent / "cutouts" / f"{Path(image_path).stem}.json"
-        log.info(f"Processing image: {image_path}")
+        image_id = data["image_info"]["Name"]
+        class_id = data["category"]["class_id"]
+        bbox = data["annotation"]["bbox_xywh"]
 
-        # Check if the metadata for the image exists
-        if Path(json_path).exists():
-            with open(json_path, 'r') as f:
-                data = json.load(f)
+        # Internal bbox structure to include image_id, class_id, and different format for bbox
+        _bbox = {
+            "image_id": image_id,
+            "class_id": class_id,
+            "x_min": bbox[0], "y_min": bbox[1],
+            "x_max": bbox[2], "y_max": bbox[3],
+            "width": bbox[2] - bbox[0],
+            "height": bbox[3] - bbox[1]
+        }
 
-            if data["annotation"]["bbox_xywh"] is not None:
-                image_id = data["image_info"]["Name"]
-                class_id = data["category"]["class_id"]
-                bbox = data["annotation"]["bbox_xywh"]
-
-                # Internal bbox structure to include image_id, class_id, and different format for bbox
-                _bbox = {
-                    "image_id": image_id,
-                    "class_id": class_id,
-                    "x_min": bbox[0], "y_min": bbox[1],
-                    "x_max": bbox[2], "y_max": bbox[3],
-                    "width": bbox[2] - bbox[0],
-                    "height": bbox[3] - bbox[1]
-                }
-
-                self._find_bbox_center(_bbox)
-                return data, _bbox
-            else:
-                log.error(f"No detection results found in JSON file: {json_path}")
-                return None
-            
-        else:
-            log.error(f"No JSON file found for {json_path}")
-            return None
-
-    def save_cutout(self, input_paths: Tuple[str, str]) -> None:
+        self._find_bbox_center(_bbox)
+        return _bbox
+        
+    def save_images(self, image_path: str, save_dir: str, class_masked_image_cropped: np.ndarray, class_masked_image_full: np.ndarray, image_cropped: np.ndarray, final_cutout_rgb: np.ndarray) -> bool:
         """
-        Saves the final cutout, cropped image, and mask.
+        Saves the cropped image, final mask, full-sized mask, and final cutout.
 
         Parameters:
-            input_paths (Tuple[str, str]): 
-                - Path to the image file.
-                - Path to the save cutouts, cropouts, and masks.
-        
+            image_path (str): Path to the input image.
+            save_dir (str): Directory to save the cropped images.
+            class_masked_image_cropped (np.ndarray): The cropped class mask image.
+            class_masked_image_full (np.ndarray): The full-sized class mask image.
+            image_cropped (np.ndarray): The cropped image.
+            final_cutout_rgb (np.ndarray): The final cutout image.
+
         Returns:
-            None
+            bool: True if images are saved successfully, False otherwise.
         """
-        log.info("Starting process to save cropout, final mask, and cutout.")
-        
-        if self.process_image(input_paths) is not None:
-            _, _bbox = self.process_image(input_paths)
-            # Process image to get bounding box and data
-            image_path, save_dir = input_paths
-
-            # Read the image
-            image = self._read_image(image_path)
-            # Create and process masks
-            masked_image, class_masked_image = self._create_masks(image, _bbox)
-            class_masked_image = class_masked_image.astype(np.uint8)
-            class_masked_image_cropped = self._crop_image(class_masked_image, _bbox['y_min'], _bbox['y_max'], _bbox['x_min'], _bbox['x_max'])
-
-            # Convert the mask to 3D
-            class_masked_image_3d = np.repeat(class_masked_image[:, :, np.newaxis], 3, axis=2).astype(np.uint8)
-            
-            # Directory setup for saving outputs
-            # save_dir = Path(image_path).parent.parent / "cutouts"
-            
-            # Create the final cutout image
-            final_cutout_bgr = np.where(class_masked_image_3d != 255, image, 0)
-            final_cutout_rgb = cv2.cvtColor(final_cutout_bgr, cv2.COLOR_BGR2RGB)
-            final_cutout_rgb = self._crop_image(final_cutout_rgb, _bbox['y_min'], _bbox['y_max'], _bbox['x_min'], _bbox['x_max'])
-
+        try:
             # Save cropped image
-            image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-            image_cropped = self._crop_image(image_rgb, _bbox['y_min'], _bbox['y_max'], _bbox['x_min'], _bbox['x_max'])
             cropout_name = Path(image_path).stem + '_cropout.png'
-
             cv2.imwrite(str(save_dir / cropout_name), image_cropped.astype(np.uint8), [cv2.IMWRITE_PNG_COMPRESSION, 1])
-            log.info(f"Cropped image saved as: {cropout_name}")
-            
-            # Save the final mask
-            class_masked_image_cropped = np.where(class_masked_image_cropped == 255, 0, class_masked_image_cropped)
+            log.debug(f"Cropped image saved as: {cropout_name}")
+
+            # Save the cropped mask
             final_mask_name = Path(image_path).stem + '_mask.png'
             cv2.imwrite(str(save_dir / final_mask_name), class_masked_image_cropped.astype(np.uint8), [cv2.IMWRITE_PNG_COMPRESSION, 1])
-            log.info(f"Final mask saved as: {final_mask_name}")
+            log.debug(f"Cropped mask saved as: {final_mask_name}")
+
+            # Save the full-sized mask
+            full_mask_dir = Path(save_dir).parent / "fullsized_masks"
+            full_mask_dir.mkdir(parents=True, exist_ok=True)
+            full_mask_name = Path(image_path).stem + '.png'
+            cv2.imwrite(str(full_mask_dir / full_mask_name), class_masked_image_full.astype(np.uint8), [cv2.IMWRITE_PNG_COMPRESSION, 1])
+            log.debug(f"Full-sized mask saved as: {full_mask_name}")
 
             # Save the final cutout
             cutout_name = Path(image_path).stem + '_cutout.png'
             cv2.imwrite(str(save_dir / cutout_name), final_cutout_rgb.astype(np.uint8), [cv2.IMWRITE_PNG_COMPRESSION, 1])
-            log.info(f"Final cutout saved as: {cutout_name}")
-        else:
-            log.error(f"Data or _bbox is None, skipping image processing.")
-
-    def save_compressed_image(self, image: np.ndarray, path: str, quality: int = 98) -> None:
+            log.debug(f"Final cutout saved as: {cutout_name}")
+            
+            return True
+        except Exception as e:
+            log.exception(f"Error saving images for {image_path}: {str(e)}")
+            return False
+            
+    def process_cutout(self, input_paths: Tuple[str, str]) -> bool:
         """
-        Save the image in a compressed JPEG format.
+        Saves the final cutout, cropped image, and mask, along with the full-sized mask.
 
         Parameters:
-            image (np.ndarray): The image to save, expected in RGB format.
-            path (str): The file path where the image will be saved.
-            quality (int, optional): The quality of the JPEG compression (0 to 100). Default is 98.
-        
+            input_paths (Tuple[str, str]): Paths to the input image and JSON file.
+
         Returns:
-            None
+            bool: True if processing succeeds, False otherwise.
         """
-        image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-        is_success, encoded_image = cv2.imencode(".jpg", image, [int(cv2.IMWRITE_JPEG_QUALITY), quality])
-        if is_success:
-            with open(path, 'wb') as f:
-                encoded_image.tofile(f)
+        log.info("Starting process to save cropout, final mask, full-sized mask, and cutout.")
+        
+        image_path, json_path = input_paths
+        data = self.read_metadata(json_path)
+
+        if data.get("annotation", {}).get("bbox_xywh"):
+            _bbox = self.process_bbox(data)
+            
+            # Set the output directory for cutouts, cropsouts and masks
+            save_dir = json_path.parent
+            # Read the image
+            image = self._read_image(image_path)
+            
+            # Cropped image
+            image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            image_cropped = self._crop_image(image_rgb, _bbox['y_min'], _bbox['y_max'], _bbox['x_min'], _bbox['x_max'])
+            
+            # Create and process masks
+            class_masked_image_full = self._create_masks(image, _bbox).astype(np.uint8)  # Full-sized mask
+            class_masked_image_cropped = self._crop_image(class_masked_image_full, _bbox['y_min'], _bbox['y_max'], _bbox['x_min'], _bbox['x_max'])
+            class_masked_image_cropped = np.where(class_masked_image_cropped == 255, 0, class_masked_image_cropped)
+            
+            # Create the final cutout image
+            class_masked_image_3d = np.repeat(class_masked_image_full[:, :, np.newaxis], 3, axis=2).astype(np.uint8)
+            final_cutout_bgr = np.where(class_masked_image_3d != 255, image, 0)
+            final_cutout_rgb = cv2.cvtColor(final_cutout_bgr, cv2.COLOR_BGR2RGB)
+            final_cutout_rgb = self._crop_image(final_cutout_rgb, _bbox['y_min'], _bbox['y_max'], _bbox['x_min'], _bbox['x_max'])
+
+            # Save images, passing both full-sized and cropped masks
+            return self.save_images(image_path, save_dir, class_masked_image_cropped, class_masked_image_full, image_cropped, final_cutout_rgb)
+        
+        else:
+            log.debug(f"Data or _bbox is None, skipping image processing.")
+            return False
 
     def _find_bbox_center(self, _bbox: dict) -> None:
         """
@@ -179,9 +180,6 @@ class SingleImageProcessor:
         Parameters:
             bbox (dict): Dictionary containing bounding box coordinates with keys 
                         'x_min', 'x_max', 'y_min', and 'y_max'.
-                    
-        Returns:
-            None
         """
         _bbox['center_x'] = (_bbox['x_min'] + _bbox['x_max']) / 2
         _bbox['center_y'] = (_bbox['y_min'] + _bbox['y_max']) / 2
@@ -196,7 +194,7 @@ class SingleImageProcessor:
         Returns:
             np.ndarray: The image in RGB format.
         """
-        log.info(f"Reading image and converting to RGB: {image_path}")
+        log.debug(f"Reading image and converting to RGB: {image_path}")
         return cv2.cvtColor(cv2.imread(str(image_path)), cv2.COLOR_BGR2RGB)
 
     def _create_masks(self, image: np.ndarray, _bbox: dict) -> Tuple[np.ndarray, np.ndarray]:
@@ -212,7 +210,7 @@ class SingleImageProcessor:
                                             - Masked image with RGBA channels.
                                             - Class mask image (binary mask).
         """
-        im_size_X, im_size_Y = image.shape[1], image.shape[0]
+        # im_size_X, im_size_Y = image.shape[1], image.shape[0]
         im_pad_size = 1500
         image_expanded = cv2.copyMakeBorder(image, im_pad_size, im_pad_size, im_pad_size, im_pad_size, cv2.BORDER_CONSTANT, value=[0, 0, 0])
         masked_image = np.copy(image_expanded)
@@ -220,24 +218,21 @@ class SingleImageProcessor:
         masked_image_rgba = np.zeros((masked_image.shape[0], masked_image.shape[1], 4), dtype=np.uint8)
         masked_image_rgba[..., :3] = masked_image
 
-        self._get_bbox_area(_bbox, im_size_X, im_size_Y)
-        self._process_annotation(_bbox, image_expanded, masked_image_rgba, class_masked_image, im_pad_size)
+        _bbox = self._get_bbox_area(_bbox)
+        # self._process_annotation(_bbox, image_expanded, masked_image_rgba, class_masked_image, im_pad_size)
+        class_masked_image = self._process_annotation(_bbox, image_expanded, class_masked_image, im_pad_size)
 
-        return masked_image_rgba[im_pad_size:-im_pad_size, im_pad_size:-im_pad_size, :], class_masked_image[im_pad_size:-im_pad_size, im_pad_size:-im_pad_size]
+        return class_masked_image[im_pad_size:-im_pad_size, im_pad_size:-im_pad_size]
 
-    def _get_bbox_area(self, _bbox: dict, im_size_X: int, im_size_Y: int) -> None:
+    def _get_bbox_area(self, _bbox: dict) -> None:
         """
         Update the bounding box dictionary with the area of the bounding box.
 
         Parameters:
             _bbox (dict): Dictionary containing bounding box coordinates.
-            im_size_X (int): Width of the image.
-            im_size_Y (int): Height of the image.
-
-        Returns:
-            None
         """
         _bbox['bbox_area'] = _bbox['width'] * _bbox['height']
+        return _bbox
 
     def _calculate_padded_bbox(self, _bbox: dict, im_pad_size: int) -> np.ndarray:
         """
@@ -253,34 +248,40 @@ class SingleImageProcessor:
         x_min, y_min, x_max, y_max = _bbox["x_min"], _bbox["y_min"], _bbox["x_max"], _bbox["y_max"]
         return np.array([x_min + im_pad_size, y_min + im_pad_size, x_max + im_pad_size, y_max + im_pad_size])
         
-    def _process_annotation(self, _bbox: dict, image_expanded: np.ndarray, masked_image_rgba: np.ndarray, class_masked_image: np.ndarray, im_pad_size: int) -> None:
+    def _process_annotation(self, _bbox: dict, image_expanded: np.ndarray, class_masked_image: np.ndarray, im_pad_size: int) -> Tuple[np.ndarray, np.ndarray]:
         """
         Processes a single annotation to update the mask images using the SAM predictor.
 
         Parameters:
             _bbox (dict): Dictionary containing bounding box coordinates and other annotations.
             image_expanded (np.ndarray): The expanded image with padding.
-            masked_image_rgba (np.ndarray): The masked image with RGBA channels.
             class_masked_image (np.ndarray): The class mask image (binary mask).
             im_pad_size (int): The padding size added to the image.
 
         Returns:
-            None
+            Tuple[np.ndarray, np.ndarray]: The updated masked_image_rgba and class_masked_image.
         """
         plant_bbox = np.array([int(_bbox['x_min']), int(_bbox['y_min']), int(_bbox['x_max']), int(_bbox['y_max'])])
         sam_crop_size_x, sam_crop_size_y = self._determine_crop_size(_bbox)
         cropped_image = self._crop_image_padded(image_expanded, _bbox, im_pad_size, sam_crop_size_x, sam_crop_size_y)
 
         self.mask_predictor.set_image(cropped_image)
-        log.info(f"Cropped image size for SAM predictor: {cropped_image.shape} ({cropped_image.dtype})")
+        log.debug(f"Cropped image size for SAM predictor: {cropped_image.shape} ({cropped_image.dtype})")
 
         _, cropped_bbox = self._get_bounding_boxes(_bbox, plant_bbox, im_pad_size, sam_crop_size_x, sam_crop_size_y)
         input_box = torch.tensor(cropped_bbox, device=self.mask_predictor.device)
         transformed_box = self.mask_predictor.transform.apply_boxes_torch(input_box, cropped_image.shape[:2])
 
-        mask, _, _ = self.mask_predictor.predict_torch(point_coords=None, point_labels=None, boxes=transformed_box, multimask_output=True, hq_token_only=False)
+        masks, _, _ = self.mask_predictor.predict_torch(point_coords=None, point_labels=None, boxes=transformed_box, multimask_output=True, hq_token_only=False)
 
-        self._apply_masks(mask, masked_image_rgba, class_masked_image, _bbox, im_pad_size, sam_crop_size_x, sam_crop_size_y)
+        # Create masked image RGBA array
+        masked_image_rgba = np.zeros((image_expanded.shape[0], image_expanded.shape[1], 4), dtype=np.uint8)
+        masked_image_rgba[..., :3] = image_expanded  # Initialize the first three channels as RGB image
+
+        # Apply masks to update the masked_image_rgba and class_masked_image
+        class_masked_image = self._apply_masks(masks, masked_image_rgba, class_masked_image, _bbox, im_pad_size, sam_crop_size_x, sam_crop_size_y)
+
+        return class_masked_image
 
     def _get_bounding_boxes(self, _bbox: dict, plant_bbox: np.ndarray, im_pad_size: int, sam_crop_size_x: int, sam_crop_size_y: int) -> Tuple[np.ndarray, np.ndarray]:
         """
@@ -427,7 +428,7 @@ class SingleImageProcessor:
         Returns:
             np.ndarray: The cleaned mask after applying morphological operations and filtering.
         """
-        log.info("Starting clean mask.")
+        log.debug("Starting clean mask.")
 
         # Broadcast the mask to 3 channels to match the image dimensions
         mask_3d = np.repeat(mask[:, :, np.newaxis], 3, axis=2)
@@ -447,10 +448,10 @@ class SingleImageProcessor:
 
         # Apply post-processing based on class ID
         if class_id in self.broad_spceies:
-            log.info(f"Working with broad morphology, class_id: {class_id}")
+            log.debug(f"Working with broad morphology, class_id: {class_id}")
             cleaned_mask = self._clean_sparse(cutout_gray_removed_rgb)
         elif class_id in self.sparse_spceies:
-            log.info(f"Working with sparse morphology, class_id: {class_id}")
+            log.debug(f"Working with sparse morphology, class_id: {class_id}")
             cleaned_mask = self._clean_broad(class_id, combined_cutout_mask)
         else:
             log.error(f"class_id: {class_id} not defined in broad_sprase_morph_species")
@@ -472,10 +473,11 @@ class SingleImageProcessor:
         exg_image = self.make_exg(cutout_gray_removed_rgb)
         exg_mask = np.where(exg_image > 0, 1, 0).astype(np.uint8)
         
+        # TODO - Apply ExG mask to the image or remove this section
         # Broadcast the mask to match the image dimensions
-        exg_mask_3d = np.repeat(exg_mask[:, :, np.newaxis], 3, axis=2)
+        # exg_mask_3d = np.repeat(exg_mask[:, :, np.newaxis], 3, axis=2)
         # Apply the ExG mask to the image
-        cutout_exg = np.where(exg_mask_3d == 1, cutout_gray_removed_rgb, 0)
+        # cutout_exg = np.where(exg_mask_3d == 1, cutout_gray_removed_rgb, 0)
 
         # Apply morphological operations to clean up the mask
         cleaned_mask = remove_small_holes(exg_mask.astype(bool), area_threshold=100, connectivity=2).astype(np.uint8)
@@ -506,7 +508,7 @@ class SingleImageProcessor:
         cleaned_mask = cv2.GaussianBlur(cleaned_mask, (7, 7), sigmaX=1)
         return cleaned_mask
 
-    def _apply_masks(self, masks: torch.Tensor, masked_image_rgba: np.ndarray, class_masked_image: np.ndarray, _bbox: dict, im_pad_size: int, sam_crop_size_x: int, sam_crop_size_y: int) -> None:
+    def _apply_masks(self, masks: torch.Tensor, masked_image_rgba: np.ndarray, class_masked_image: np.ndarray, _bbox: dict, im_pad_size: int, sam_crop_size_x: int, sam_crop_size_y: int) -> Tuple[np.ndarray, np.ndarray]:
         """
         Applies generated masks to the respective images and updates the mask images. Utilizes _clean_mask to refine the masks.
 
@@ -520,7 +522,7 @@ class SingleImageProcessor:
             sam_crop_size_y (int): Height of the cropped region.
 
         Returns:
-            None
+            Tuple[np.ndarray, np.ndarray]: The updated masked_image_rgba and class_masked_image.
         """
         bb_color = tuple(np.random.random(size=3) * 255)  # Random color for bounding box visualization
 
@@ -551,116 +553,79 @@ class SingleImageProcessor:
             masked_image_rgba[full_mask == 1, 3] = int(alpha * 255)
             class_masked_image[full_mask == 1] = _bbox['class_id']
 
-def directory_initializer(cfg: DictConfig) -> List[Path]:
-    """
-    Initializes directories and retrieves all image paths from the given configuration.
+        return class_masked_image
 
-    Parameters:
-        cfg (DictConfig): The configuration object containing paths for data directories.
+class BatchDirectoryInitializer:
+    def __init__(self, cfg: DictConfig) -> None:
+        """
+        The DirectoryInitializer class initializes
 
-    Returns:
-        Tuple[List[Path], Path, Path]: 
-            - A list of Paths pointing to all `.jpg` images found in the "developed-images" subdirectory of each batch.
-            - The output directory Path where processed cutouts will be saved.
-            - The metadata directory Path where metadata files are stored.
-    """
-    batches = list(Path(cfg.data.temp_dir).iterdir())
-    
-    all_images = []
-
-    output_dir = None
-    metadata_dir = None
-    
-    for batch in batches:
-        image_dir = Path(batch / "developed-images")
+        Parameters:
+            cfg (DictConfig): The configuration object.
+        """
+        self.temp_dir = Path(cfg.data.temp_dir)
+        self.batches = [x.name for x in self.temp_dir.glob("*")]
         
-        if image_dir.exists():
-            images = list(image_dir.glob("*.jpg"))
-            all_images.extend(images)
-        output_dir = Path(batch / "cutouts")
-        metadata_dir = Path(batch / "cutouts")
-    
-    return all_images, output_dir, metadata_dir
-        
-def process_sequentially(directory_initializer, processor: "SingleImageProcessor", cfg: DictConfig) -> None:
-    """
-    This function processes a batch of images sequentially.
+    def organize_input_paths(self) -> List[Tuple[str, str]]:
+        """
+        Organize the input paths for the images and metadata files.
 
-    Parameters:
-        directory_initializer (callable): A function that initializes and returns image paths.
-        processor (SingleImageProcessor): The SingleImageProcessor object.
+        Returns:
+            List[Tuple[str, str]]: List of tuples containing image and metadata file paths.
+        """
+        input_paths = []
+        for batch in self.batches:
+            batch_dir = self.temp_dir / batch 
+            # Organize the input paths for the images and metadata files
+            input_paths.extend([(Path(img), Path(batch_dir, "cutouts", f"{img.stem}.json")) for img in Path(batch_dir, "developed-images").glob("*.jpg")])
+        return input_paths
+
+def process_sequentially(directory_initializer: BatchDirectoryInitializer, processor: SingleImageProcessor) -> bool:
+    """
+    Process a batch of images sequentially.
 
     Returns:
-        None
+        bool: True if all images are processed successfully, False otherwise.
     """
-    imgs, _, _ = directory_initializer(cfg)
-    
-    for image_path in imgs:
-        log.info(f"Processing image: {image_path}")
-        save_dir = Path(image_path).parent.parent / "cutouts"
-        input_paths = (image_path, save_dir)
-        processor.process_image(input_paths)
-        processor.save_cutout(input_paths)
+    input_paths = directory_initializer.organize_input_paths()
+    success = True
+    for input_path in input_paths:
+        log.debug(f"Processing image: {input_path[0]}")
+        if not processor.process_cutout(input_path):
+            success = False
+    return success
 
-def process_concurrently(directory_initializer, processor: "SingleImageProcessor", cfg: DictConfig) -> None:
+def process_concurrently(directory_initializer: BatchDirectoryInitializer, processor: SingleImageProcessor) -> bool:
     """
-    This function processes a batch of images concurrently using multiprocessing.
-
-    Parameters:
-        directory_initializer (callable): A function that initializes and returns image paths.
-        processor (SingleImageProcessor): The SingleImageProcessor object.
-        cfg (DictConfig): The configuration object containing paths and settings.
+    Process a batch of images concurrently using multiprocessing.
 
     Returns:
-        None
+        bool: True if all images are processed successfully, False otherwise.
     """
-
-    #### Multiprocessing not working
-
-    # Initialize directories and get image paths
-    imgs, _, _ = directory_initializer(cfg)
-
-    # Prepare input paths for each image
-    input_paths = []
-    for image_path in imgs:
-        log.info(f"Processing image: {image_path}")
-        save_dir = image_path.parent.parent / "cutouts"
-        input_paths.append((image_path, save_dir))
-
-    # Set the number of workers based on available CPU cores
-    max_workers = max(1, int(len(os.sched_getaffinity(0)) / 5))
+    input_paths = directory_initializer.organize_input_paths()
+    max_workers = int(len(os.sched_getaffinity(0)) / 5)
     log.info(f"Using {max_workers} workers for multiprocessing")
-
-    # Process images concurrently
+    
+    success = True
     with ProcessPoolExecutor(max_workers=max_workers, mp_context=mp.get_context('spawn')) as executor:
-        executor.map(lambda paths: processor.process_image(paths), input_paths)
-        executor.map(lambda paths: processor.save_cutout(paths), input_paths)
+        results = executor.map(processor.process_cutout, input_paths)
+        if not all(results):
+            success = False
+    return success
 
 def main(cfg: DictConfig) -> None:
     """
     The main function to process a batch of images using the SingleImageProcessor.
-    
-    Parameters:
-        cfg (DictConfig): The configuration object.
-
-    Returns:
-        None
     """
-    log.info("Starting segmentation.")
-    
-    _, output_dir, metadata_dir = directory_initializer(cfg)
 
-    processor = SingleImageProcessor(
-        cfg=cfg,
-        output_dir=output_dir,
-        metadata_dir=metadata_dir,
-        model_type=cfg.data.sam_model_type,
-        sam_checkpoint=cfg.data.sam_hq_checkpoint
-    )
+    log.info("Starting segmentation.")
+    directory_initializer = BatchDirectoryInitializer(cfg)
+    
+    processor = SingleImageProcessor(cfg)
 
     if cfg.segment_weeds.multiprocess:
         log.info("Starting concurrent processing")
-        process_concurrently(directory_initializer, processor, cfg)
+        return process_concurrently(directory_initializer, processor)
     else:
         log.info("Starting sequential processing")
-        process_sequentially(directory_initializer, processor, cfg)
+        return process_sequentially(directory_initializer, processor)

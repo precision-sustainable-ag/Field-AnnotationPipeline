@@ -11,16 +11,16 @@ hydra:
 
 pipeline:
   # - find_unprocessed_batches
-  # - download_batch
-  - detect_weeds
-  - segment_weeds
+  - download_batch
+  # - detect_weeds
+  # - segment_weeds
 
 download_batch:
   use_multithreading: True
-  download_limit: 4
+  download_limit: 20
 
 segment_weeds:
-  multiprocess: False
+  multiprocess: True
   
 general:
   task: # Leave empty as placeholder

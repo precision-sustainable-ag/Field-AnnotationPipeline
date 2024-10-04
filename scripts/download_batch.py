@@ -99,7 +99,9 @@ class BatchDownloader:
             (df['Developed Images'] > 0)
         ]
         
-        filtered_df = filtered_df.sort_values(by=['Batch'])
+        # filtered_df = filtered_df.sort_values(by=['Batch'])
+        # Randomize the order of the rows
+        filtered_df = filtered_df.sample(frac=1).reset_index(drop=True)
         
         # List to store indices of fully downloaded batches and those to be downloaded
         present_fully_processed_batches = []
