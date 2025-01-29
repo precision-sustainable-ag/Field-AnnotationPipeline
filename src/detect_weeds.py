@@ -15,6 +15,7 @@ from pathlib import Path
 from omegaconf import DictConfig
 from ultralytics import YOLO
 from typing import Optional, Dict
+from tqdm import tqdm
 
 # Configure logging
 log = logging.getLogger(__name__)
@@ -142,12 +143,11 @@ class MetadataExtractor:
         Returns:
             None
         """
-        self.csv_path = cfg.data.merged_tables_permanent
-        self.species_info_path = cfg.data.field_species_info
-
-        # Load the broad_sprase_morph_species dictionary
-        with open(cfg.morphology_species, 'r') as f:
-            self.broad_sprase_morph_species = yaml.safe_load(f)
+        self.csv_path = cfg.paths.merged_tables_permanent
+        self.species_info_path = cfg.paths.field_species_info
+        # # Load the broad_sprase_morph_species dictionary
+        # with open(cfg.morphology_species, 'r') as f:
+        #     self.broad_sprase_morph_species = yaml.safe_load(f)
 
         # Load the merged data tables CSV and species info JSON
         self.df = pd.read_csv(self.csv_path, low_memory=False)
@@ -455,23 +455,24 @@ class ProcessDetections:
         Returns:    
             None
         """
-        self.output_dir = Path(cfg.data.temp_output_dir)
+        self.output_dir = Path(cfg.paths.temp_output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
-        self.weed_detector = WeedDetector(cfg.data.path_yolo_model)
+        self.weed_detector = WeedDetector(cfg.paths.path_yolo_model)
         self.image_processor = ImageProcessor()
         self.metadata_extractor = MetadataExtractor(cfg)
 
         # Loop through the batches
-        batches = list(Path(cfg.data.temp_dir).iterdir())
+        batches = list(Path(cfg.paths.temp_dir).iterdir())
         for batch in batches:
             image_dir = Path(batch /"developed-images")
             self.image_loader = ImageLoader(image_dir)
+
+            # Loop through the images in the batch
             for image_path in image_dir.iterdir():
                 if image_path.suffix.lower() in {".jpg", ".jpeg", ".png", ".JPG", ".JPEG"}:
                     self.image_path = Path(image_path)
                     self.process_image(self.image_path)
-
 
     def process_image(self, image_path: Path) -> None:
         """
@@ -524,5 +525,5 @@ def main(cfg: DictConfig) -> None:
         None
     """
     log.info(f"Starting {cfg.general.task}")
-    process_weeds = ProcessDetections(cfg)
+    ProcessDetections(cfg)
     log.info(f"{cfg.general.task} completed.")

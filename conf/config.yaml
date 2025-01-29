@@ -1,57 +1,36 @@
 # Hydra defaults and settings. Ignore these (don't change)
 defaults:
+  - paths: default
   - morphology: morphology
-  - override hydra/job_logging: custom # custom logging 
   - _self_
 
 hydra:
   run:
-    dir: ${logs.logdir}/${job.job_now}
+    dir: ${paths.logdir}/${job.job_now}
   output_subdir: ${hydra.run.dir}/hydra
 
 pipeline:
   # - find_unprocessed_batches
   # - download_batch
-  - detect_weeds
-  - segment_weeds
+  # - detect_weeds
+  - inference
 
 download_batch:
   use_multithreading: True
-  download_limit: 4
+  download_limit: 1
 
 segment_weeds:
   multiprocess: False
   
 general:
   task: # Leave empty as placeholder
-  workdir: ${hydra:runtime.cwd}  # where the code is executed
 
-pipeline_keys: ${general.workdir}/keys/authorized_keys.yaml
-
-reports: ${general.workdir}/reports
-
-data:
-  datadir: ${general.workdir}/data
-  longterm_storage: /mnt/research-projects/r/raatwell/longterm_images3/field-batches/
-  temp_dir: ${data.datadir}/temp
-  field_species_info: ${data.datadir}/field-utils/field_species_info.json
-  temp_image_dir: ${data.datadir}/images_testing/test_images/input
-  temp_output_dir: ${data.datadir}/images_testing/test_images/output
-  field_species_name: ${data.datadir}/field-utils/field_species_name.json
-  path_yolo_model: ${data.datadir}/models/weed_detection/weights/best.pt
-  sam_checkpoint: ${data.datadir}/models//sam/sam_checkpoints/sam_vit_b_01ec64.pth 
-  sam_hq_checkpoint: ${data.datadir}/models//sam/sam_checkpoints/sam_hq_vit_h.pth
-  sam_model_type: "vit_h"
-  merged_tables_permanent: ${data.datadir}/persistent_tables/merged_blobs_tables_metadata_permanent.csv
-
-logs:
-  logdir: ${general.workdir}/logging
+pipeline_keys: ${paths.workdir}/keys/authorized_keys.yaml
 
 job:
   job_now_date: &nowdir ${now:%Y-%m-%d}
   job_now_time: ${now:%H_%M_%S}
   job_now: ${job.job_now_date}/${job.job_now_time} 
-  jobdir: ${data.datadir}/${job.job_now}
+  jobdir: ${paths.datadir}/${job.job_now}
 
 morphology_species: ${general.workdir}/conf/morphology/morphology.yaml
-
