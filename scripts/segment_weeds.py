@@ -102,12 +102,12 @@ class SingleImageProcessor:
         """
         try:
             # Save cropped image
-            cropout_name = Path(image_path).stem + '_cropout.png'
+            cropout_name = Path(image_path).stem + '_cropout.JPG'
             cv2.imwrite(str(save_dir / cropout_name), image_cropped.astype(np.uint8), [cv2.IMWRITE_PNG_COMPRESSION, 1])
             log.debug(f"Cropped image saved as: {cropout_name}")
 
             # Save the cropped mask
-            final_mask_name = Path(image_path).stem + '_mask.png'
+            final_mask_name = Path(image_path).stem + '.png'
             cv2.imwrite(str(save_dir / final_mask_name), class_masked_image_cropped.astype(np.uint8), [cv2.IMWRITE_PNG_COMPRESSION, 1])
             log.debug(f"Cropped mask saved as: {final_mask_name}")
 
@@ -119,7 +119,7 @@ class SingleImageProcessor:
             log.debug(f"Full-sized mask saved as: {full_mask_name}")
 
             # Save the final cutout
-            cutout_name = Path(image_path).stem + '_cutout.png'
+            cutout_name = Path(image_path).stem + '.JPG'
             cv2.imwrite(str(save_dir / cutout_name), final_cutout_rgb.astype(np.uint8), [cv2.IMWRITE_PNG_COMPRESSION, 1])
             log.debug(f"Final cutout saved as: {cutout_name}")
             
@@ -261,27 +261,31 @@ class SingleImageProcessor:
         Returns:
             Tuple[np.ndarray, np.ndarray]: The updated masked_image_rgba and class_masked_image.
         """
-        plant_bbox = np.array([int(_bbox['x_min']), int(_bbox['y_min']), int(_bbox['x_max']), int(_bbox['y_max'])])
-        sam_crop_size_x, sam_crop_size_y = self._determine_crop_size(_bbox)
-        cropped_image = self._crop_image_padded(image_expanded, _bbox, im_pad_size, sam_crop_size_x, sam_crop_size_y)
+        try:
+            plant_bbox = np.array([int(_bbox['x_min']), int(_bbox['y_min']), int(_bbox['x_max']), int(_bbox['y_max'])])
+            sam_crop_size_x, sam_crop_size_y = self._determine_crop_size(_bbox)
+            cropped_image = self._crop_image_padded(image_expanded, _bbox, im_pad_size, sam_crop_size_x, sam_crop_size_y)
 
-        self.mask_predictor.set_image(cropped_image)
-        log.debug(f"Cropped image size for SAM predictor: {cropped_image.shape} ({cropped_image.dtype})")
+            self.mask_predictor.set_image(cropped_image)
+            log.debug(f"Cropped image size for SAM predictor: {cropped_image.shape} ({cropped_image.dtype})")
 
-        _, cropped_bbox = self._get_bounding_boxes(_bbox, plant_bbox, im_pad_size, sam_crop_size_x, sam_crop_size_y)
-        input_box = torch.tensor(cropped_bbox, device=self.mask_predictor.device)
-        transformed_box = self.mask_predictor.transform.apply_boxes_torch(input_box, cropped_image.shape[:2])
+            _, cropped_bbox = self._get_bounding_boxes(_bbox, plant_bbox, im_pad_size, sam_crop_size_x, sam_crop_size_y)
+            input_box = torch.tensor(cropped_bbox, device=self.mask_predictor.device)
+            transformed_box = self.mask_predictor.transform.apply_boxes_torch(input_box, cropped_image.shape[:2])
 
-        masks, _, _ = self.mask_predictor.predict_torch(point_coords=None, point_labels=None, boxes=transformed_box, multimask_output=True, hq_token_only=False)
+            masks, _, _ = self.mask_predictor.predict_torch(point_coords=None, point_labels=None, boxes=transformed_box, multimask_output=True, hq_token_only=False)
 
-        # Create masked image RGBA array
-        masked_image_rgba = np.zeros((image_expanded.shape[0], image_expanded.shape[1], 4), dtype=np.uint8)
-        masked_image_rgba[..., :3] = image_expanded  # Initialize the first three channels as RGB image
+            # Create masked image RGBA array
+            masked_image_rgba = np.zeros((image_expanded.shape[0], image_expanded.shape[1], 4), dtype=np.uint8)
+            masked_image_rgba[..., :3] = image_expanded  # Initialize the first three channels as RGB image
 
-        # Apply masks to update the masked_image_rgba and class_masked_image
-        class_masked_image = self._apply_masks(masks, masked_image_rgba, class_masked_image, _bbox, im_pad_size, sam_crop_size_x, sam_crop_size_y)
+            # Apply masks to update the masked_image_rgba and class_masked_image
+            class_masked_image = self._apply_masks(masks, masked_image_rgba, class_masked_image, _bbox, im_pad_size, sam_crop_size_x, sam_crop_size_y)
 
-        return class_masked_image
+            return class_masked_image
+        except Exception as e:
+            log.exception(f"Error processing annotation for bbox {_bbox}: {str(e)}")
+            return class_masked_image
 
     def _get_bounding_boxes(self, _bbox: dict, plant_bbox: np.ndarray, im_pad_size: int, sam_crop_size_x: int, sam_crop_size_y: int) -> Tuple[np.ndarray, np.ndarray]:
         """
