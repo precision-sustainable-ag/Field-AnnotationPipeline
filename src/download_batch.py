@@ -233,7 +233,7 @@ class BatchDownloader:
                     batch_name = future_to_batch[future]
                     try:
                         future.result()
-                        log.info(f"Batch {batch_name} processed successfully.")
+                        log.info(f"Batch {batch_name} downloaded successfully.")
                     except Exception as e:
                         log.error(f"Batch {batch_name} generated an exception: {e}")
         else:

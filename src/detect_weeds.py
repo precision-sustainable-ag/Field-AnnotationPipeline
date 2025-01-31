@@ -145,11 +145,6 @@ class MetadataExtractor:
         """
         self.csv_path = cfg.paths.merged_tables_permanent
         self.species_info_path = cfg.paths.field_species_info
-        # # Load the broad_sprase_morph_species dictionary
-        # with open(cfg.morphology_species, 'r') as f:
-        #     self.broad_sprase_morph_species = yaml.safe_load(f)
-
-        # Load the merged data tables CSV and species info JSON
         self.df = pd.read_csv(self.csv_path, low_memory=False)
         assert not self.df.empty, "Merged data tables CSV is empty."
 

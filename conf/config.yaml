@@ -1,7 +1,6 @@
 # Hydra defaults and settings. Ignore these (don't change)
 defaults:
   - paths: default
-  - morphology: morphology
   - _self_
 
 hydra:
@@ -12,8 +11,8 @@ hydra:
 pipeline:
   # - find_unprocessed_batches
   # - download_batch
-  # - detect_weeds
-  - unet_segment_weeds
+  - detect_weeds
+  # - unet_segment_weeds
 
 download_batch:
   use_multithreading: True
@@ -32,9 +31,6 @@ job:
   job_now_time: ${now:%H_%M_%S}
   job_now: ${job.job_now_date}/${job.job_now_time} 
   jobdir: ${paths.datadir}/${job.job_now}
-
-#delete this:
-morphology_species: ${general.workdir}/conf/morphology/morphology.yaml
 
 inference_for_pipeline:
   save_mask: False # If true, the segmented image will be saved
