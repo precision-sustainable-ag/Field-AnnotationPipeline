@@ -8,11 +8,9 @@ temp_output_dir: ${paths.datadir}/images_testing/test_images/output
 reports: ${paths.workdir}/reports
 
 # model paths
-path_yolo_model: ${paths.datadir}/models/weed_detection/weights/best.pt
-sam_checkpoint: ${paths.datadir}/models//sam/sam_checkpoints/sam_vit_b_01ec64.pth
-sam_hq_checkpoint: ${paths.datadir}/models//sam/sam_checkpoints/sam_hq_vit_h.pth
-sam_model_type: "vit_h"
-unet_model : ${paths.datadir}/models/unet/unet_segmentation.pth
+yolo_weed_detection_model: ${paths.datadir}/models/weed_detection/weights/best.pt
+unet_segmentation_model : ${paths.datadir}/models/unet/unet_segmentation.pth
+# unet_segmentation_model : ${paths.datadir}/models/unet_old_resizing_issues/unet_segmentation.pth
 
 # data paths
 merged_tables_permanent: ${paths.datadir}/persistent_tables/merged_blobs_tables_metadata_permanent.csv
@@ -20,3 +18,6 @@ field_species_info: ${paths.datadir}/field-utils/field_species_info.json
 
 # longterm storage for field images
 longterm_storage: /mnt/research-projects/r/raatwell/longterm_images3/field-batches/
+
+# delete this
+inference_results_dir: ${paths.datadir}/inference_results

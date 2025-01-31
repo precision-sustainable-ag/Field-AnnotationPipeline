@@ -17,7 +17,7 @@ pipeline:
 
 download_batch:
   use_multithreading: True
-  download_limit: 1
+  download_limit: 20
 
 segment_weeds:
   multiprocess: False
@@ -33,4 +33,10 @@ job:
   job_now: ${job.job_now_date}/${job.job_now_time} 
   jobdir: ${paths.datadir}/${job.job_now}
 
+#delete this:
 morphology_species: ${general.workdir}/conf/morphology/morphology.yaml
+
+inference_for_pipeline:
+  save_mask: False # If true, the segmented image will be saved
+  overlay_comparison: False # If true, the original image and the segmented image will be overlayed
+  side_by_side_comparison: True # If true, the original image and the segmented image will be displayed side by side but greatly increases the time to process

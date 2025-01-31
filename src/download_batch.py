@@ -98,7 +98,6 @@ class BatchDownloader:
             (df['Raw Images'] > 0) &
             (df['Developed Images'] > 0)
         ]
-        
         filtered_df = filtered_df.sort_values(by=['Batch'])
         
         # List to store indices of fully downloaded batches and those to be downloaded
@@ -143,7 +142,7 @@ class BatchDownloader:
         Returns:
             bool: True if all images are present, False otherwise.
         """
-        developed_batch_path = batch_path / "developed-images"
+        developed_batch_path = batch_path / "developed_images"
         image_files = list(developed_batch_path.glob("*.jpg"))  # Adjust the image extension as needed
         num_images = len(image_files)
         log.info(f"Batch {developed_batch_path.parent.name}/{developed_batch_path.name} contains {num_images}/{expected_image_count} images.")

@@ -458,7 +458,7 @@ class ProcessDetections:
         self.output_dir = Path(cfg.paths.temp_output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
-        self.weed_detector = WeedDetector(cfg.paths.path_yolo_model)
+        self.weed_detector = WeedDetector(cfg.paths.yolo_weed_detection_model)
         self.image_processor = ImageProcessor()
         self.metadata_extractor = MetadataExtractor(cfg)
 
