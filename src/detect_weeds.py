@@ -264,6 +264,10 @@ class MetadataExtractor:
         image_info_dict = self._get_image_info(image_info)
         plant_field_info_dict = self._get_plant_field_info(image_info)
         category = self._get_category(image_name)
+
+        for key in ('collection_location', 'collection_timing'):
+            category.pop(key, None)  # `None` prevents KeyError if key doesn't exist
+
         exif_data_imp_dict = self._get_exif_data(exif_data)
 
         # Combine the extracted metadata into a single dictionary
