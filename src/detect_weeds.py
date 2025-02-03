@@ -145,6 +145,7 @@ class MetadataExtractor:
         """
         self.csv_path = cfg.paths.merged_tables_permanent
         self.species_info_path = cfg.paths.field_species_info
+        self.metadata_version = cfg.metadata_version
         self.df = pd.read_csv(self.csv_path, low_memory=False)
         assert not self.df.empty, "Merged data tables CSV is empty."
 
@@ -276,7 +277,8 @@ class MetadataExtractor:
             "plant_field_info": plant_field_info_dict,
             "annotation": self._get_bbox_xywh(detection_results),
             "category": category,
-            "exif_meta": exif_data_imp_dict
+            "exif_meta": exif_data_imp_dict,
+            "version": self.metadata_version
         }
 
         # Save the metadata to a JSON file
