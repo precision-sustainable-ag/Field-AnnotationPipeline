@@ -4,6 +4,7 @@ from omegaconf import DictConfig
 import pandas as pd
 import datetime
 from typing import List, Dict
+from tqdm import tqdm
 
 # Configure logging
 log = logging.getLogger(__name__)
@@ -20,10 +21,10 @@ class BatchChecker:
 
     def __init__(self, cfg: DictConfig) -> None:
         self.cfg = cfg
-        self.longterm_storage = Path(self.cfg.data.longterm_storage)
+        self.longterm_storage = Path(self.cfg.paths.longterm_storage)
 
         # Ensure the report directory exists
-        self.report_dir = Path(cfg.reports)
+        self.report_dir = Path(cfg.paths.reports)
         self.report_dir.mkdir(parents=True, exist_ok=True)
 
     def find_batches(self) -> List[str]:
@@ -33,11 +34,12 @@ class BatchChecker:
         Returns:
             List[str]: A list of batch folder names.
         """
+        log.info("Finding batch folders in long-term storage.")
         batches = []
         longterm_storage_path = Path(self.longterm_storage)
         
         # Iterate through directories in the long-term storage path
-        for batch_folder in longterm_storage_path.iterdir():
+        for batch_folder in tqdm(longterm_storage_path.iterdir(), desc="Finding batches"):
             if batch_folder.is_dir():
                 batches.append(batch_folder.name)
         return batches
@@ -49,12 +51,13 @@ class BatchChecker:
         Returns:
             List[Dict[str, int]]: A list of dictionaries, each containing the count of files in the batch's subdirectories.
         """
+        log.info("Checking batch folders for raw images, developed images, metadata, and cutouts.")
         report = []
         batches = self.find_batches()
         longterm_storage_path = Path(self.longterm_storage)  # Define long-term storage path
 
         # Iterate through each batch folder and gather information about its contents
-        for batch_folder in batches:
+        for batch_folder in tqdm(batches, desc="Checking folders"):
             batch_path = longterm_storage_path / batch_folder
             developed_images_path = batch_path / "developed-images"
             raw_images_path = batch_path / "raws"
@@ -80,6 +83,7 @@ class BatchChecker:
         Args:
             report (List[Dict[str, int]]): The report data to be saved.
         """
+        log.info("Saving the report as a CSV file.")
         # Generate a timestamped filename for the report
         now = datetime.datetime.now()
         file_path_with_datetime = Path(self.report_dir, f"report_{now.strftime('%Y%m%d_%H%M%S')}.csv")
@@ -87,7 +91,7 @@ class BatchChecker:
         # Convert the report data to a DataFrame and save it as a CSV file
         df = pd.DataFrame(report)
         df.to_csv(file_path_with_datetime, index=False)
-
+        log.info(f"Report saved as {file_path_with_datetime}")
 
 def main(cfg: DictConfig) -> None:
     """Main function to start the batch checking process."""

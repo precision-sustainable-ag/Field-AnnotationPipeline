@@ -15,6 +15,7 @@ from pathlib import Path
 from omegaconf import DictConfig
 from ultralytics import YOLO
 from typing import Optional, Dict
+from tqdm import tqdm
 
 # Configure logging
 log = logging.getLogger(__name__)
@@ -142,14 +143,9 @@ class MetadataExtractor:
         Returns:
             None
         """
-        self.csv_path = cfg.data.merged_tables_permanent
-        self.species_info_path = cfg.data.field_species_info
-
-        # Load the broad_sprase_morph_species dictionary
-        with open(cfg.morphology_species, 'r') as f:
-            self.broad_sprase_morph_species = yaml.safe_load(f)
-
-        # Load the merged data tables CSV and species info JSON
+        self.csv_path = cfg.paths.merged_tables_permanent
+        self.species_info_path = cfg.paths.field_species_info
+        self.metadata_version = cfg.metadata_version
         self.df = pd.read_csv(self.csv_path, low_memory=False)
         assert not self.df.empty, "Merged data tables CSV is empty."
 
@@ -269,6 +265,10 @@ class MetadataExtractor:
         image_info_dict = self._get_image_info(image_info)
         plant_field_info_dict = self._get_plant_field_info(image_info)
         category = self._get_category(image_name)
+
+        for key in ('collection_location', 'collection_timing'):
+            category.pop(key, None)  # `None` prevents KeyError if key doesn't exist
+
         exif_data_imp_dict = self._get_exif_data(exif_data)
 
         # Combine the extracted metadata into a single dictionary
@@ -277,7 +277,8 @@ class MetadataExtractor:
             "plant_field_info": plant_field_info_dict,
             "annotation": self._get_bbox_xywh(detection_results),
             "category": category,
-            "exif_meta": exif_data_imp_dict
+            "exif_meta": exif_data_imp_dict,
+            "version": self.metadata_version
         }
 
         # Save the metadata to a JSON file
@@ -396,8 +397,11 @@ class MetadataExtractor:
         Returns:
             dict: Extracted bounding box coordinates.
         """
+        # Extract the bounding box coordinates
         if detection_results is not None:
-            bbox_xywh = [detection_results["bbox"]["x_min"], detection_results["bbox"]["y_min"], detection_results["bbox"]["x_max"], detection_results["bbox"]["y_max"]]
+            bbox_height = detection_results["bbox"]["y_max"] - detection_results["bbox"]["y_min"]
+            bbox_width = detection_results["bbox"]["x_max"] - detection_results["bbox"]["x_min"]
+            bbox_xywh = [detection_results["bbox"]["x_min"], detection_results["bbox"]["y_min"], bbox_width, bbox_height]
             bbox_xywh_dict = {"bbox_xywh": bbox_xywh}
         else:
             bbox_xywh_dict = {"bbox_xywh": None} 
@@ -455,23 +459,24 @@ class ProcessDetections:
         Returns:    
             None
         """
-        self.output_dir = Path(cfg.data.temp_output_dir)
+        self.output_dir = Path(cfg.paths.temp_output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
-        self.weed_detector = WeedDetector(cfg.data.path_yolo_model)
+        self.weed_detector = WeedDetector(cfg.paths.yolo_weed_detection_model)
         self.image_processor = ImageProcessor()
         self.metadata_extractor = MetadataExtractor(cfg)
 
         # Loop through the batches
-        batches = list(Path(cfg.data.temp_dir).iterdir())
+        batches = list(Path(cfg.paths.temp_dir).iterdir())
         for batch in batches:
             image_dir = Path(batch /"developed-images")
             self.image_loader = ImageLoader(image_dir)
+
+            # Loop through the images in the batch
             for image_path in image_dir.iterdir():
                 if image_path.suffix.lower() in {".jpg", ".jpeg", ".png", ".JPG", ".JPEG"}:
                     self.image_path = Path(image_path)
                     self.process_image(self.image_path)
-
 
     def process_image(self, image_path: Path) -> None:
         """
@@ -524,5 +529,5 @@ def main(cfg: DictConfig) -> None:
         None
     """
     log.info(f"Starting {cfg.general.task}")
-    process_weeds = ProcessDetections(cfg)
+    ProcessDetections(cfg)
     log.info(f"{cfg.general.task} completed.")

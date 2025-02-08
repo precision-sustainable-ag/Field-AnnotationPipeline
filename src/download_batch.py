@@ -27,9 +27,9 @@ class BatchDownloader:
                               and various settings like download limits and multithreading options.
         """
         self.cfg = cfg
-        self.report_dir = Path(cfg.reports)
-        self.longterm_storage = Path(cfg.data.longterm_storage)
-        self.temp_storage = Path(cfg.data.temp_dir)
+        self.report_dir = Path(cfg.paths.reports)
+        self.longterm_storage = Path(cfg.paths.longterm_storage)
+        self.temp_storage = Path(cfg.paths.temp_dir)
         self.temp_storage.mkdir(parents=True, exist_ok=True)
         
     def find_most_recent_report(self) -> Optional[Path]:
@@ -48,7 +48,7 @@ class BatchDownloader:
         
         # Sort the report files based on the timestamp in their names
         most_recent_report = max(report_files, key=lambda f: f.stem.split('_')[1])
-        relative_path = most_recent_report.relative_to(self.cfg.general.workdir)
+        relative_path = most_recent_report.relative_to(self.cfg.paths.workdir)
         log.info(f"Most recent report found: {relative_path}")
         
         return most_recent_report
@@ -69,7 +69,7 @@ class BatchDownloader:
             if report_path is None:
                 raise FileNotFoundError("No report available to load.")
 
-        log.info(f"Loading report from {report_path.relative_to(self.cfg.general.workdir)}")
+        log.info(f"Loading report from {report_path.relative_to(self.cfg.paths.workdir)}")
         df = pd.read_csv(report_path)
         return df
 
@@ -98,7 +98,6 @@ class BatchDownloader:
             (df['Raw Images'] > 0) &
             (df['Developed Images'] > 0)
         ]
-        
         filtered_df = filtered_df.sort_values(by=['Batch'])
         
         # List to store indices of fully downloaded batches and those to be downloaded
@@ -143,7 +142,7 @@ class BatchDownloader:
         Returns:
             bool: True if all images are present, False otherwise.
         """
-        developed_batch_path = batch_path / "developed-images"
+        developed_batch_path = batch_path / "developed_images"
         image_files = list(developed_batch_path.glob("*.jpg"))  # Adjust the image extension as needed
         num_images = len(image_files)
         log.info(f"Batch {developed_batch_path.parent.name}/{developed_batch_path.name} contains {num_images}/{expected_image_count} images.")
@@ -234,7 +233,7 @@ class BatchDownloader:
                     batch_name = future_to_batch[future]
                     try:
                         future.result()
-                        log.info(f"Batch {batch_name} processed successfully.")
+                        log.info(f"Batch {batch_name} downloaded successfully.")
                     except Exception as e:
                         log.error(f"Batch {batch_name} generated an exception: {e}")
         else:
