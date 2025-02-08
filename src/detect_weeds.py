@@ -397,8 +397,11 @@ class MetadataExtractor:
         Returns:
             dict: Extracted bounding box coordinates.
         """
+        # Extract the bounding box coordinates
         if detection_results is not None:
-            bbox_xywh = [detection_results["bbox"]["x_min"], detection_results["bbox"]["y_min"], detection_results["bbox"]["x_max"], detection_results["bbox"]["y_max"]]
+            bbox_height = detection_results["bbox"]["y_max"] - detection_results["bbox"]["y_min"]
+            bbox_width = detection_results["bbox"]["x_max"] - detection_results["bbox"]["x_min"]
+            bbox_xywh = [detection_results["bbox"]["x_min"], detection_results["bbox"]["y_min"], bbox_width, bbox_height]
             bbox_xywh_dict = {"bbox_xywh": bbox_xywh}
         else:
             bbox_xywh_dict = {"bbox_xywh": None} 

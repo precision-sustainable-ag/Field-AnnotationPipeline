@@ -19,19 +19,19 @@
       "plant_field_info": {
         "type": "object",
         "properties": {
-          "PlantType": { "type": "string" },
-          "CloudCover": { "type": "string" },
-          "GroundResidue": { "type": "string" },
-          "GroundCover": { "type": "string" },
+          "PlantType": { "type": ["string", "null"]  },
+          "CloudCover": { "type": ["string", "null"]  },
+          "GroundResidue": { "type": ["string", "null"]  },
+          "GroundCover": { "type": ["string", "null"]  },
           "CoverCropFamily": { "type": ["string", "null"] },
           "GrowthStage": { "type": ["string", "null"] },
           "CottonVariety": { "type": ["string", "null"] },
-          "CropOrFallow": { "type": "string" },
+          "CropOrFallow": { "type": ["string", "null"]  },
           "CropTypeSecondary": { "type": ["string", "null"] },
-          "Species": { "type": "string" },
+          "Species": { "type": ["string", "null"]  },
           "Height": { "type": ["string", "null"] },
-          "SizeClass": { "type": "string" },
-          "FlowerFruitOrSeeds": { "type": "boolean" }
+          "SizeClass": { "type": ["string", "null"]  },
+          "FlowerFruitOrSeeds": { "type": ["string", "null"]  }
         },
         "required": ["PlantType", "CloudCover", "GroundResidue", "GroundCover", "CoverCropFamily", "CropOrFallow", "CropTypeSecondary", "Species", "Height", "SizeClass", "FlowerFruitOrSeeds"]
       },
@@ -40,9 +40,7 @@
         "properties": {
           "bbox_xywh": {
             "type": "array",
-            "items": { "type": "integer" },
-            "minItems": 4,
-            "maxItems": 4
+            "items": { "type": ["number", "null"] }
           }
         },
         "required": ["bbox_xywh"]
@@ -50,7 +48,7 @@
       "category": {
         "type": "object",
         "properties": {
-          "class_id": { "type": "integer" },
+          "class_id": { "type": "number" },
           "USDA_symbol": { "type": "string" },
           "EPPO": { "type": "string" },
           "group": { "type": "string" },
@@ -66,12 +64,12 @@
           "duration": { "type": "string" },
           "category": { "type": "string" },
           "multi_species_USDA_symbol": { "type": ["string", "null"] },
-          "link": { "type": "string", "format": "uri" },
+          "link": { "type": ["string", "null"] , "format": "uri" },
           "note": { "type": ["string", "null"] },
           "hex": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
           "rgb": {
             "type": "array",
-            "items": { "type": "integer", "minimum": 0, "maximum": 255 },
+            "items": { "type": "number", "minimum": 0, "maximum": 255 },
             "minItems": 3,
             "maxItems": 3
           }
@@ -86,8 +84,8 @@
           "Software": { "type": "string" },
           "ExposureTime": { "type": "string" },
           "FNumber": { "type": "string" },
-          "ISOSpeedRatings": { "type": "integer" },
-          "Flash": { "type": "integer" },
+          "ISOSpeedRatings": { "type": "number" },
+          "Flash": { "type": "number" },
           "FocalLength": { "type": "string" },
           "LensModel": { "type": "string" }
         },
