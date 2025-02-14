@@ -252,14 +252,15 @@ class UNetInference:
                 class_id = data["category"]["class_id"]
                 bbox = data["annotation"]["bbox_xywh"]
 
+                x_max, y_max = bbox[0] + bbox[2], bbox[1] + bbox[3]
                 # Internal bbox structure to include image_id, class_id, and different format for bbox
                 _bbox = {
                     "image_id": image_id,
                     "class_id": class_id,
                     "x_min": bbox[0], "y_min": bbox[1],
-                    "x_max": bbox[2], "y_max": bbox[3],
-                    "width": bbox[2] - bbox[0],
-                    "height": bbox[3] - bbox[1]
+                    "x_max": x_max, "y_max": y_max,
+                    "width": bbox[2],
+                    "height": bbox[3]
                 }
 
                 self._find_bbox_center(_bbox)
