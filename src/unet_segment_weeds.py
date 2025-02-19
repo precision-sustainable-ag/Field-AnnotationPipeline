@@ -280,7 +280,7 @@ class UNetInference:
         batches = list(Path(self.temp_dir).iterdir())
 
         for batch in batches:
-            img_dir = Path(batch / "developed_images")
+            img_dir = Path(batch / "developed-images")
             log.info(f"Processing images in directory: {img_dir}")
             images = sorted(list(img_dir.rglob("*.jpg")))
             for img_path in images:
