@@ -282,7 +282,7 @@ class MetadataExtractor:
         }
 
         # Save the metadata to a JSON file
-        metadata_filename = image_metadata_dir / f"{Path(image_path).stem}.json"
+        metadata_filename = image_metadata_dir / f"{Path(image_path).stem}_0.json"
         with open(metadata_filename, "w") as file:
             json.dump(combined_dict, file, indent=4, default=str)
         

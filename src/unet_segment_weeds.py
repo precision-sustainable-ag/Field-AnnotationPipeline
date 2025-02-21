@@ -217,9 +217,9 @@ class UNetInference:
 
         # Generate filenames
         stem = Path(img_path).stem
-        cropout_name = f"{stem}.jpg"
-        final_mask_name = f"{stem}_mask.png"
-        cutout_name = f"{stem}.png"
+        cropout_name = f"{stem}_0.jpg"
+        final_mask_name = f"{stem}_0_mask.png"
+        cutout_name = f"{stem}_0.png"
 
         # Save cropped image
         cv2.imwrite(str(save_dir / cropout_name), image_cropped.astype(np.uint8), [cv2.IMWRITE_JPEG_QUALITY, 100])
@@ -239,7 +239,7 @@ class UNetInference:
         """
         log.info(f"Starting process to read image and process JSON file.")
         image_path, _ = input_paths
-        json_path = Path(image_path).parent.parent / "cutouts" / f"{Path(image_path).stem}.json"
+        json_path = Path(image_path).parent.parent / "cutouts" / f"{Path(image_path).stem}_0.json"
         log.info(f"Processing image: {image_path}")
 
         # Check if the metadata for the image exists
