@@ -10,10 +10,6 @@ from datetime import datetime
 from omegaconf import DictConfig
 
 # Configure logging
-logging.basicConfig(
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    level=logging.INFO
-)
 log = logging.getLogger(__name__)
 
 class InspectMetadataCutouts:
@@ -31,11 +27,11 @@ class InspectMetadataCutouts:
         """
         log.info(f"Initializing InspectMetadataCutouts at {datetime.now()}")
         self.cfg = cfg
-        self.df = pd.read_csv("data/persistent_tables/merged_blobs_tables_metadata_permanent.csv", low_memory=False)
+        self.df = pd.read_csv(cfg.paths.merged_tables_permanent, low_memory=False)
 
         # Number of random images to inspect per batch
         self.num_random_images_to_inspect = cfg.inspection.num_random_images_to_inspect
-
+        
         # Set up directories
         self.temp_dir = Path(cfg.paths.temp_dir)
         self.inspection_dir = Path(cfg.paths.inspection_dir)
@@ -101,7 +97,6 @@ class InspectMetadataCutouts:
         """
         df_stem_jpg = self.df[(self.df['Stem'] == image_stem) & (self.df['Extension'] == 'jpg')]
         species = df_stem_jpg['Species'].values[0]
-        
         return species
 
     def process_directory(self) -> None:
@@ -123,20 +118,17 @@ class InspectMetadataCutouts:
 
             if len(cropped_images) == 0: 
                 log.info(f"No processed images found in {batch}.")
-
-            elif 0 < len(cropped_images) < 11:
+            elif 0 < len(cropped_images) < self.num_random_images_to_inspect:
                 log.info(f"Found less than {self.num_random_images_to_inspect} images in {batch}. Using all images for inspection.")
                 for image_path in cropped_images:
                     mask_path  = f"{str(image_path).replace('.jpg', '_mask.png')}"
                     cutout_path = f"{str(image_path).replace('.jpg', '.png')}"
-                    
-                    image_stem = image_path.stem
+                    log.info(f"Processing image: {image_path}")
+                    image_stem = (image_path.stem).replace('_0', '')
                     species = self._extract_species(image_stem)
-
                     cropped_image = self._read_image_convert_rgb(image_path)
                     mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
                     cutout = self._read_image_convert_rgb(cutout_path)
-
                     self._save_image(inspection_batch, image_path, cropped_image, mask, cutout, species)
             else:
                 log.info(f"Found more than {self.num_random_images_to_inspect} images in {batch}. Using {self.num_random_images_to_inspect} random images for inspection.")
@@ -144,16 +136,13 @@ class InspectMetadataCutouts:
                 for image_path in randomly_selected_images:
                     mask_path  = f"{str(image_path).replace('.jpg', '_mask.png')}"
                     cutout_path = f"{str(image_path).replace('.jpg', '.png')}"
-
-                    image_stem = image_path.stem 
+                    log.info(f"Processing image: {image_path}")
+                    image_stem = (image_path.stem).replace('_0', '')
                     species = self._extract_species(image_stem)
-
                     cropped_image = self._read_image_convert_rgb(image_path)
                     mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
                     cutout = self._read_image_convert_rgb(cutout_path)
-
                     self._save_image(inspection_batch, image_path, cropped_image, mask, cutout, species)
-
         log.info("Inspection completed.")
 
 def main(cfg: DictConfig) -> None:
