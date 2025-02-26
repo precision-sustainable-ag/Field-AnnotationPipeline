@@ -1,6 +1,5 @@
 import json
 import logging
-import yaml
 import cv2
 import numpy as np
 import pandas as pd
@@ -15,7 +14,6 @@ from pathlib import Path
 from omegaconf import DictConfig
 from ultralytics import YOLO
 from typing import Optional, Dict
-from tqdm import tqdm
 
 # Configure logging
 log = logging.getLogger(__name__)
@@ -70,10 +68,15 @@ class WeedDetector:
         """
         log.info("Starting weed detection.")
         results = self.model(image)
-        
+
         if not results or not results[0].boxes.xyxy.tolist():
             log.warning("No detection found.")
             return None
+
+        # Extract the detection confidence score
+        det_pred_conf = None
+        for result in results:
+            det_pred_conf = f"{result.boxes.conf.item():.3f}"
 
         # Extract the bounding box coordinates
         bbox = results[0].boxes.xyxy.tolist()[0]
@@ -85,7 +88,8 @@ class WeedDetector:
                 "y_min": y_min,
                 "x_max": x_max,
                 "y_max": y_max
-            }
+            },
+            "det_pred_conf": det_pred_conf
         }
         return detection_results
 
@@ -275,7 +279,7 @@ class MetadataExtractor:
         combined_dict = {
             "image_info": image_info_dict,
             "plant_field_info": plant_field_info_dict,
-            "annotation": self._get_bbox_xywh(detection_results),
+            "annotation": self._get_bbox_xywh_and_conf(detection_results),
             "category": category,
             "exif_meta": exif_data_imp_dict,
             "version": self.metadata_version
@@ -301,11 +305,20 @@ class MetadataExtractor:
 
         # Extract the relevant dataf from the image_info saved on the tablet when the image was taken
         image_info_list = [
-            "Name", "Extension", "ImageURL", "UploadDateTimeUTC", "CameraInfo_DateTime", "SizeMiB", "HasMatchingJpgAndRaw", "ImageIndex", "UsState"
+            "Name", "Extension", "Batch_id", "ImageURL", "UploadDateTimeUTC", "CameraInfo_DateTime", "SizeMiB", "HasMatchingJpgAndRaw", "ImageIndex", "UsState"
         ]
 
+        camerainfo_date_time = image_info['CameraInfo_DateTime'].iloc[0]
+        camerainfo_date = camerainfo_date_time.split(" ")[0]
+
+        batch_id = [f"{image_info['UsState'].iloc[0]}_{camerainfo_date}"]
+
+        image_info.insert(2, "Batch_id", batch_id)
+
         image_info_imp = image_info[image_info_list].to_dict(orient='list')
+
         image_info_dict = {key: value[0] if value else None for key, value in image_info_imp.items()}
+
         image_info_dict["Name"] = image_info_dict["Name"].split(".")[0]
 
         image_info_dict = self._custom_decoder(image_info_dict) # deal with NaN values and en dash
@@ -387,7 +400,7 @@ class MetadataExtractor:
 
         return exif_data_imp_dict
 
-    def _get_bbox_xywh(self, detection_results: dict) -> dict:
+    def _get_bbox_xywh_and_conf(self, detection_results: dict) -> dict:
         """
         This function extracts the bounding box coordinates.
 
@@ -402,11 +415,11 @@ class MetadataExtractor:
             bbox_height = detection_results["bbox"]["y_max"] - detection_results["bbox"]["y_min"]
             bbox_width = detection_results["bbox"]["x_max"] - detection_results["bbox"]["x_min"]
             bbox_xywh = [detection_results["bbox"]["x_min"], detection_results["bbox"]["y_min"], bbox_width, bbox_height]
-            bbox_xywh_dict = {"bbox_xywh": bbox_xywh}
+            bbox_xywh_conf_dict = {"bbox_xywh": bbox_xywh, "det_pred_conf": detection_results["det_pred_conf"]}
         else:
-            bbox_xywh_dict = {"bbox_xywh": None} 
+            bbox_xywh_conf_dict = {"bbox_xywh": None, "det_pred_conf": None}
 
-        return bbox_xywh_dict
+        return bbox_xywh_conf_dict
 
     @staticmethod
     def _custom_decoder(data: dict) -> dict:
