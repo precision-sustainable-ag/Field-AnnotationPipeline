@@ -74,9 +74,7 @@ class WeedDetector:
             return None
 
         # Extract the detection confidence score
-        det_pred_conf = None
-        for result in results:
-            det_pred_conf = f"{result.boxes.conf.item():.3f}"
+        det_pred_conf = f"{results[0].boxes.conf.item():.3f}"
 
         # Extract the bounding box coordinates
         bbox = results[0].boxes.xyxy.tolist()[0]
