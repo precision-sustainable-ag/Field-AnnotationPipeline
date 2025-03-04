@@ -11,16 +11,20 @@ hydra:
 pipeline:
   # - find_unprocessed_batches
   # - download_batch
-  - detect_weeds
+  # - detect_weeds
   # - unet_segment_weeds
+  - inspection
 
 download_batch:
   use_multithreading: True
-  download_limit: 20
+  download_limit: 2
 
 segment_weeds:
   multiprocess: False
-  
+
+inspection:
+  num_random_images_to_inspect: 15
+
 general:
   task: # Leave empty as placeholder
 
