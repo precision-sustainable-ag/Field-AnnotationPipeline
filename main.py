@@ -7,7 +7,7 @@ import hydra
 from hydra.utils import get_method
 from omegaconf import DictConfig, OmegaConf
 
-sys.path.append("scripts")
+sys.path.append("src")
 
 log = logging.getLogger(__name__)
 # Get the logger for the Azure SDK
@@ -17,7 +17,20 @@ azlogger.setLevel(logging.WARN)
 
 
 @hydra.main(version_base="1.3", config_path="conf", config_name="config")
-def run_FIELD_PIPELINE(cfg: DictConfig) -> None:
+def main(cfg: DictConfig) -> None:
+    """
+    Main entry point for the Field-AnnotationPipeline.
+
+    This function is decorated with `@hydra.main` to initialize the Hydra configuration.
+    It retrieves the configuration, determines the current user, and executes the tasks
+    defined in the pipeline configuration.
+
+    Args:
+        cfg (DictConfig): The configuration object provided by Hydra.
+
+    Raises:
+        Exception: If any task in the pipeline fails, an exception is logged and the program exits with status 1.
+    """
     cfg = OmegaConf.create(cfg)
     whoami = getpass.getuser()
 
@@ -34,6 +47,5 @@ def run_FIELD_PIPELINE(cfg: DictConfig) -> None:
             log.exception("Failed")
             sys.exit(1)
 
-
 if __name__ == "__main__":
-    run_FIELD_PIPELINE()
+    main()
