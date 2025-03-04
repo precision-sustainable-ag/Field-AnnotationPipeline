@@ -289,13 +289,13 @@ class UNetInference:
                 try:
                     _, _bbox = self.process_image(input_paths)
                 except Exception as e:
-                    log.error(f"Error processing image: {img_path}")
+                    log.error(f"Error processing image: {img_path}", e)
                     log.error(e)
                     
                 try:
                     self.save_image(img_path, _bbox)
                 except Exception as e:
-                    log.error(f"Error processing image: {img_path}")
+                    log.error(f"Error processing image: {img_path}", e)
                     log.error(e)
 
         log.info("Inference completed.")

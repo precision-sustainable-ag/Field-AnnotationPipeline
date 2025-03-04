@@ -81,7 +81,8 @@ class InspectMetadataCutouts:
         axs[2].axis('off')
         
         plt.suptitle(f'Species: {species}', fontsize=16)
-        plt.savefig(image_save_path)
+        plt.tight_layout()
+        plt.savefig(image_save_path, bbox_inches='tight')
         plt.close()
         log.info(f"Saved inspection image to {image_save_path}")
     
