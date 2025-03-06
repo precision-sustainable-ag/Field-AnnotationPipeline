@@ -1,13 +1,13 @@
 import cv2
+import random
 import logging
 import numpy as np
-import random
 import pandas as pd
 
-from matplotlib import pyplot as plt
 from pathlib import Path
 from datetime import datetime
 from omegaconf import DictConfig
+from matplotlib import pyplot as plt
 
 # Configure logging
 log = logging.getLogger(__name__)
@@ -17,7 +17,6 @@ class InspectMetadataCutouts:
     Class for inspecting image cutouts with corresponding segmentation masks.
 
     """
-
     def __init__(self, cfg: DictConfig) -> None:
         """
         Initializes the InspectMetadataCutouts class.
@@ -25,7 +24,6 @@ class InspectMetadataCutouts:
         Args:
             cfg (DictConfig): Configuration object containing necessary paths.
         """
-        log.info(f"Initializing InspectMetadataCutouts at {datetime.now()}")
         self.cfg = cfg
         self.df = pd.read_csv(cfg.paths.merged_tables_permanent, low_memory=False)
 
@@ -64,6 +62,7 @@ class InspectMetadataCutouts:
             cutout (np.ndarray): The cutout image array.
             species (str): Species label extracted from metadata.
         """
+        log.info(f"Saving inspection image for species: {species}")
         image_name = Path(image_path).name
         image_save_path = Path(inspection_batch / image_name)
         _, axs = plt.subplots(1, 3, figsize=(15, 5))
@@ -96,6 +95,7 @@ class InspectMetadataCutouts:
         Returns:
             str: The species name associated with the image.
         """
+        log.info(f"Extracting species for image: {image_stem}")
         df_stem_jpg = self.df[(self.df['Stem'] == image_stem) & (self.df['Extension'] == 'jpg')]
         species = df_stem_jpg['Species'].values[0]
         return species

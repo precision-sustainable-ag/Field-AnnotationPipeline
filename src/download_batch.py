@@ -1,11 +1,15 @@
 import os
-import logging
-from omegaconf import DictConfig
-import pandas as pd
-from pathlib import Path
+import sys
 import shutil
+import logging
+import traceback
+import pandas as pd
+
+from pathlib import Path
 from typing import Optional
+from omegaconf import DictConfig
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from tqdm import tqdm
 
 # Configure logging
 log = logging.getLogger(__name__)
@@ -26,6 +30,7 @@ class BatchDownloader:
             cfg (DictConfig): Configuration object containing paths for CSV reports, batch storage,
                               and various settings like download limits and multithreading options.
         """
+        log.info("Initializing BatchDownloader.")
         self.cfg = cfg
         self.report_dir = Path(cfg.paths.reports)
         self.longterm_storage = Path(cfg.paths.longterm_storage)
@@ -42,15 +47,17 @@ class BatchDownloader:
         # Get a list of all report files in the directory
         report_files = list(self.report_dir.glob("report_*.csv"))
         
-        if not report_files:
-            log.warning("No reports found in the report directory.")
+        try:
+            if not report_files:
+                raise FileNotFoundError
+        except Exception as e:
+            log.warning(f"An error occurred: {str(e)}\nDetailed traceback:\n{traceback.format_exc()}")
             return None
         
         # Sort the report files based on the timestamp in their names
         most_recent_report = max(report_files, key=lambda f: f.stem.split('_')[1])
         relative_path = most_recent_report.relative_to(self.cfg.paths.workdir)
         log.info(f"Most recent report found: {relative_path}")
-        
         return most_recent_report
     
     def load_report(self, report_path: Optional[Path] = None) -> pd.DataFrame:
@@ -159,7 +166,8 @@ class BatchDownloader:
         try:
             shutil.copy2(src, dest)
         except Exception as e:
-            log.exception(f"Failed to download image {src.name}: {e}")
+            log.exception(f"Failed to download image {src.name}: {e}.\nDetailed traceback:\n{traceback.format_exc()}\n\n\nExiting...\n\n\n", exc_info=True)
+            sys.exit(1)
 
     def download_batch(self, batch_name: str, expected_image_count: int) -> None:
         """
@@ -197,10 +205,12 @@ class BatchDownloader:
                     for future in as_completed(futures):
                         future.result()
             except Exception as e:
-                log.exception(f"Failed to download batch {batch_name}: {e}")
+                log.exception(f"Failed to download batch {batch_name}: {e}.\nDetailed traceback:\n{traceback.format_exc()} \n\n\nExiting...\n\n\n",)
+                sys.exit(1)
         else:
-            log.error(f"Batch {batch_name} does not exist in long-term storage.")
-
+            log.error(f"Batch {batch_name} does not exist in long-term storage. \n\n\nExiting...\n\n\n")
+            sys.exit(1)
+            
     def process_batches(self) -> None:
         """
         Processes and downloads batches that meet the filtering criteria, with a limit on the number of downloads.
@@ -235,7 +245,8 @@ class BatchDownloader:
                         future.result()
                         log.info(f"Batch {batch_name} downloaded successfully.")
                     except Exception as e:
-                        log.error(f"Batch {batch_name} generated an exception: {e}")
+                        log.error(f"Batch {batch_name} generated an exception: {e}. \n\n\nExiting...\n\n\n")
+                        sys.exit(1)
         else:
             log.info("Multithreading is disabled. Downloading batches sequentially.")
             for _, row in filtered_batches.iterrows():

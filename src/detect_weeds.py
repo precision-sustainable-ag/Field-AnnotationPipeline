@@ -1,18 +1,18 @@
-import json
-import logging
+import os
+import sys
 import cv2
+import json
+import math
+import copy 
+import logging
+import exifread
+import traceback
 import numpy as np
 import pandas as pd
-import math
-import exifread
-import copy 
-import os
 
-from PIL import Image
-from PIL.ExifTags import TAGS
 from pathlib import Path
-from omegaconf import DictConfig
 from ultralytics import YOLO
+from omegaconf import DictConfig
 from typing import Optional, Dict
 
 # Configure logging
@@ -56,7 +56,7 @@ class WeedDetector:
         """
         self.model = YOLO(model_path)
 
-    def detect_weeds(self, image: np.ndarray) -> Optional[Dict[str, Dict[str, int]]]:
+    def detect_weeds(self, image: np.ndarray, image_path: str) -> Optional[Dict[str, Dict[str, int]]]:
         """
         Detects target weed in the given image.
 
@@ -69,11 +69,15 @@ class WeedDetector:
         log.info("Starting weed detection.")
         results = self.model(image)
 
-        if not results or not results[0].boxes.xyxy.tolist():
-            log.warning("No detection found.")
+        try:        
+            if not results or not results[0].boxes.xyxy.tolist():
+                raise ValueError(f"No weed detected for image: {image_path}.")
+        except Exception as e:
+            log.warning(f"{str(e)}\nDetailed traceback:\n{traceback.format_exc()}")
             return None
 
         # Extract the detection confidence score
+        log.info("Weed detected.")
         det_pred_conf = f"{results[0].boxes.conf.item():.3f}"
 
         # Extract the bounding box coordinates
@@ -169,8 +173,8 @@ class MetadataExtractor:
         # Find the species for the given image
         species_series = self.df[self.df["Name"].str.lower() == image_name.lower()]["Species"]
         if species_series.empty:
-            log.warning(f"Species data not found for image: {image_name}")
-            return None
+            log.error(f"Species data not found for image: {image_name}.\n\n\n Exiting...\n\n\n")
+            sys.exit(1)
         
         species = [str(species).lower() for species in species_series][0]
         class_id = self._find_class_id(species)
@@ -198,8 +202,8 @@ class MetadataExtractor:
                 if values['alias'].lower() == species:
                     return values['class_id']
         
-        log.error(f"Species '{species}' not found in the species info. Returning None.")
-        return None
+        log.error(f"Species '{species}' not found in the species info. \n\n\n Exiting...\n\n\n")
+        sys.exit(1)
     
     @staticmethod
     def get_exif_data(image_path: str) -> dict:
@@ -499,31 +503,28 @@ class ProcessDetections:
         Returns:
             None
         """
-        image = self.image_loader.read_image(self.image_path)
+        try:
+            image = self.image_loader.read_image(self.image_path)
+            image_metadata_dir = Path(os.path.join(os.path.dirname(os.path.dirname(image_path)), 'cutouts')) # save metadata in the same batch as the image
 
-        image_metadata_dir = Path(os.path.join(os.path.dirname(os.path.dirname(image_path)), 'cutouts')) # save metadata in the same batch as the image
+            # Create the metadata directory if it doesn't exist
+            os.makedirs(image_metadata_dir, exist_ok=True)
+        except Exception as e:
+            log.error(f"Error reading image: {e}.\n\n\n Exiting...\n\n\n")
+            sys.exit(1)
 
-        # Create the metadata directory if it doesn't exist
-        os.makedirs(image_metadata_dir, exist_ok=True)
-
-        if image is None:
-            log.warning(f"No image present for processing.")
-            return
-
-        class_id = self.metadata_extractor.get_class_id(image_path.name)
-        if not class_id:
-            log.warning(f"Class_id not found.")
-            return
+        try:
+            class_id = self.metadata_extractor.get_class_id(image_path.name)
+        except Exception as e:
+            log.error(f"Error extracting class ID: {e}.\n\n\n Exiting...\n\n\n")
+            sys.exit(1)
         
         # Detect weeds in the image
-        detection_results = self.weed_detector.detect_weeds(image)
+        detection_results = self.weed_detector.detect_weeds(image, image_path)
         if detection_results is not None:
-            detection_results = self.weed_detector.detect_weeds(image)
             detection_results["image_id"] = Path(self.image_path).stem
             detection_results["class_id"] = class_id
-        else: 
-            log.warning(f"No detection.")
-        
+            
         exif_data = self.metadata_extractor.get_exif_data(str(self.image_path))
 
         # Save the image metadata

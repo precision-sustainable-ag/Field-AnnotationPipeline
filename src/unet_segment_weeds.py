@@ -1,7 +1,9 @@
+import sys
 import cv2
 import json
 import torch
 import logging
+import traceback
 import numpy as np
 
 from PIL import Image
@@ -159,7 +161,7 @@ class UNetInference:
         Args:
             image_path (str): Path to the input image.
         """
-        log.info(f"Processing image: {image_path}")
+        log.info(f"Inferencing image: {image_path}")
         cropped_image, _, image_full_size = self._process_image(image_path, _bbox)
         cropped_image_shape = cropped_image.shape
 
@@ -174,7 +176,7 @@ class UNetInference:
 
         padded_mask_for_visualization = self._resize_and_pad_mask(pred_mask, _bbox, image_full_size.shape[:2])
 
-        log.info(f"inferencing completed for this image.")
+        log.info(f"Inferencing completed for image: {image_path}.")
         return padded_mask_for_visualization
 
     def save_image(self, img_path, _bbox):
@@ -185,8 +187,12 @@ class UNetInference:
             img_path (str): Path to the input image.
             _bbox (dict): Dictionary containing bounding box coordinates and class ID.
         """
+        log.info(f"Starting process to save segmentation results for {img_path}")
         # Read the original image
         image = self._read_image(img_path)
+
+        if _bbox is None: 
+            return
 
         # Extract bounding box coordinates
         y_min, y_max, x_min, x_max, class_id = _bbox['y_min'], _bbox['y_max'], _bbox['x_min'], _bbox['x_max'], _bbox['class_id']
@@ -223,22 +229,25 @@ class UNetInference:
 
         # Save cropped image
         cv2.imwrite(str(save_dir / cropout_name), image_cropped.astype(np.uint8), [cv2.IMWRITE_JPEG_QUALITY, 100])
-        log.info(f"Cropped image saved as: {cropout_name}")
+        log.info(f"Cropped image saved: {str(save_dir / cropout_name)}")
 
         # Save final mask
         cv2.imwrite(str(save_dir / final_mask_name), final_mask.astype(np.uint8))
-        log.info(f"Final mask saved as: {final_mask_name}")
+        log.info(f"Final mask saved: {str(save_dir / final_mask_name)}")
 
         # Save final cutout
         cv2.imwrite(str(save_dir / cutout_name), final_cutout_rgb.astype(np.uint8))
-        log.info(f"Final cutout saved as: {cutout_name}")
+        log.info(f"Final cutout saved: {str(save_dir / cutout_name)}")
+
+        log.info(f"Segmentation results saved for image: {img_path}.\n\n\n")
 
     def process_image(self, input_paths):
         """
         Process an image and its corresponding JSON file.
         """
-        log.info(f"Starting process to read image and process JSON file.")
         image_path, _ = input_paths
+        log.info(f"Starting process to read {image_path} and process JSON file.")
+
         json_path = Path(image_path).parent.parent / "cutouts" / f"{Path(image_path).stem}_0.json"
         log.info(f"Processing image: {image_path}")
 
@@ -265,12 +274,16 @@ class UNetInference:
 
                 self._find_bbox_center(_bbox)
                 return data, _bbox
-            else:
-                log.error(f"No detection results found in JSON file: {json_path}")
-                return None
             
+            else:
+                try:
+                    raise ValueError(f"No detection results found in JSON file: {json_path}\n\n\n")
+                except ValueError as e:
+                    log.error(f"{e}\n{traceback.format_exc()}")
+                return None, None
+           
         else:
-            log.error(f"No JSON file found for {json_path}")
+            log.error(f"No JSON file found for {json_path}\n\n\n")
             return None
         
     def process_directory(self):
@@ -281,7 +294,7 @@ class UNetInference:
 
         for batch in batches:
             img_dir = Path(batch / "developed-images")
-            log.info(f"Processing images in directory: {img_dir}")
+            log.info(f"Processing images in directory: {img_dir}\n\n\n")
             images = sorted(list(img_dir.rglob("*.jpg")))
             for img_path in images:
                 save_dir = Path(img_path).parent.parent / "cutouts"
@@ -289,16 +302,14 @@ class UNetInference:
                 try:
                     _, _bbox = self.process_image(input_paths)
                 except Exception as e:
-                    log.error(f"Error processing image: {img_path}", e)
-                    log.error(e)
+                    log.error(f"Error processing image: {img_path}", exc_info=True)
                     
                 try:
                     self.save_image(img_path, _bbox)
                 except Exception as e:
-                    log.error(f"Error processing image: {img_path}", e)
-                    log.error(e)
+                    log.error(f"Error saving image: {img_path}", exc_info=True)
 
-        log.info("Inference completed.")
+        log.info("Segmentation completed.")
 
 def main(cfg: DictConfig):
     """
