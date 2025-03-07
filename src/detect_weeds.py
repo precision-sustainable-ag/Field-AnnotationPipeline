@@ -158,6 +158,8 @@ class MetadataExtractor:
         with open(self.species_info_path, "r") as file:
             self.species_info = json.load(file)
 
+        self.missing_data_notes = []
+
     def get_class_id(self, image_name: str) -> Optional[str]:
         """
         This function extracts the class ID from the image name.
@@ -174,7 +176,9 @@ class MetadataExtractor:
         species_series = self.df[self.df["Name"].str.lower() == image_name.lower()]["Species"]
         if species_series.empty:
             log.error(f"Species data not found for image: {image_name}.\n\n\n Exiting...\n\n\n")
-            sys.exit(1)
+            # sys.exit(1)
+            self.missing_data_notes.append("Missing species data")
+            return None
         
         species = [str(species).lower() for species in species_series][0]
         class_id = self._find_class_id(species)
@@ -277,6 +281,7 @@ class MetadataExtractor:
 
         exif_data_imp_dict = self._get_exif_data(exif_data)
 
+        image_info_dict["Note"] = " ".join(self.missing_data_notes) if self.missing_data_flag else None
         # Combine the extracted metadata into a single dictionary
         combined_dict = {
             "image_info": image_info_dict,
@@ -363,6 +368,9 @@ class MetadataExtractor:
             dict: Extracted category information.
         """
         class_id = self.get_class_id(image_name)
+        if not class_id:
+            log.error(f"Class ID not found for image: {image_name}.\n\n\n Exiting...\n\n\n")
+            return None
 
         # Make a copy of the species_info dictionary to avoid modifying the original
         species_info_copy = copy.deepcopy(self.species_info['species'])
