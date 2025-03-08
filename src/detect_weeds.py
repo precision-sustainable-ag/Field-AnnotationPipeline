@@ -69,11 +69,8 @@ class WeedDetector:
         log.info("Starting weed detection.")
         results = self.model(image)
 
-        try:        
-            if not results or not results[0].boxes.xyxy.tolist():
-                raise ValueError(f"No weed detected for image: {image_path}.")
-        except Exception as e:
-            log.warning(f"{str(e)}\nDetailed traceback:\n{traceback.format_exc()}")
+        if not results or not results[0].boxes.xyxy.tolist():
+            log.warning(f"No detection found for image: {image_path}.")
             return None
 
         # Extract the detection confidence score
@@ -153,12 +150,12 @@ class MetadataExtractor:
         self.species_info_path = cfg.paths.field_species_info
         self.metadata_version = cfg.metadata_version
         self.df = pd.read_csv(self.csv_path, low_memory=False)
+        self.missing_data_notes = [] # list to store missing data notes
+
         assert not self.df.empty, "Merged data tables CSV is empty."
 
         with open(self.species_info_path, "r") as file:
             self.species_info = json.load(file)
-
-        self.missing_data_notes = []
 
     def get_class_id(self, image_name: str) -> Optional[str]:
         """
@@ -174,13 +171,12 @@ class MetadataExtractor:
 
         # Find the species for the given image
         species_series = self.df[self.df["Name"].str.lower() == image_name.lower()]["Species"]
-        if species_series.empty:
-            log.error(f"Species data not found for image: {image_name}.\n\n\n Exiting...\n\n\n")
-            # sys.exit(1)
-            self.missing_data_notes.append("Missing species data")
-            return None
-        
         species = [str(species).lower() for species in species_series][0]
+
+        if species_series.empty:
+            log.warning(f"Species data not found for image: {image_name}.")
+            self.missing_data_notes.append(f"Missing species data for {image_name}. Species in persistent table: {species}.")
+
         class_id = self._find_class_id(species)
         log.info(f"Class ID: {class_id}")
 
@@ -206,8 +202,7 @@ class MetadataExtractor:
                 if values['alias'].lower() == species:
                     return values['class_id']
         
-        log.error(f"Species '{species}' not found in the species info. \n\n\n Exiting...\n\n\n")
-        sys.exit(1)
+        log.warning(f"Species '{species}' not found in the species info.")
     
     @staticmethod
     def get_exif_data(image_path: str) -> dict:
@@ -265,7 +260,6 @@ class MetadataExtractor:
             None
         """
         log.info("Extracting metadata")
-
         # Extract the image information, plant field information, category, and relevant EXIF data
         image_name = Path(image_path).name
         image_info = self.df[self.df["Name"].str.lower() == image_name.lower()]
@@ -281,7 +275,12 @@ class MetadataExtractor:
 
         exif_data_imp_dict = self._get_exif_data(exif_data)
 
-        image_info_dict["Note"] = " ".join(self.missing_data_notes) if self.missing_data_flag else None
+        # Add missing data note to the metadata if any data is missing
+        if self.missing_data_notes:
+            image_info_dict["Note"] = " ".join(self.missing_data_notes)
+        else:
+            image_info_dict["Note"] = None
+            
         # Combine the extracted metadata into a single dictionary
         combined_dict = {
             "image_info": image_info_dict,
@@ -368,9 +367,6 @@ class MetadataExtractor:
             dict: Extracted category information.
         """
         class_id = self.get_class_id(image_name)
-        if not class_id:
-            log.error(f"Class ID not found for image: {image_name}.\n\n\n Exiting...\n\n\n")
-            return None
 
         # Make a copy of the species_info dictionary to avoid modifying the original
         species_info_copy = copy.deepcopy(self.species_info['species'])
@@ -380,7 +376,8 @@ class MetadataExtractor:
                 category = species_value
                 category.pop('alias') if 'alias' in category else None # delete class_id in the final metadata
                 break
-            
+            elif class_id is None:
+                category = {}
         return category
 
     def _get_exif_data(self, exif_data: dict) -> dict:
@@ -511,21 +508,18 @@ class ProcessDetections:
         Returns:
             None
         """
-        try:
-            image = self.image_loader.read_image(self.image_path)
-            image_metadata_dir = Path(os.path.join(os.path.dirname(os.path.dirname(image_path)), 'cutouts')) # save metadata in the same batch as the image
+        image = self.image_loader.read_image(self.image_path)
+        image_metadata_dir = Path(os.path.join(os.path.dirname(os.path.dirname(image_path)), 'cutouts')) # save metadata in the same batch as the image
+        # Create the metadata directory if it doesn't exist
+        os.makedirs(image_metadata_dir, exist_ok=True)
 
-            # Create the metadata directory if it doesn't exist
-            os.makedirs(image_metadata_dir, exist_ok=True)
-        except Exception as e:
-            log.error(f"Error reading image: {e}.\n\n\n Exiting...\n\n\n")
-            sys.exit(1)
+        if image is None:
+            log.warning(f"No image present for processing.")
+            return
 
-        try:
-            class_id = self.metadata_extractor.get_class_id(image_path.name)
-        except Exception as e:
-            log.error(f"Error extracting class ID: {e}.\n\n\n Exiting...\n\n\n")
-            sys.exit(1)
+        class_id = self.metadata_extractor.get_class_id(image_path.name)
+        if not class_id:
+            log.warning(f"Class_id not found for {image_path}.")
         
         # Detect weeds in the image
         detection_results = self.weed_detector.detect_weeds(image, image_path)
