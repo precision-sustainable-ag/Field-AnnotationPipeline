@@ -3,8 +3,6 @@ workdir: ${hydra:runtime.cwd}
 logdir: ${paths.workdir}/logging
 datadir: ${paths.workdir}/data
 temp_dir: ${paths.datadir}/temp
-temp_image_dir: ${paths.datadir}/images_testing/test_images/input
-temp_output_dir: ${paths.datadir}/images_testing/test_images/output
 inspection_dir: ${paths.datadir}/inspection
 reports: ${paths.workdir}/reports
 

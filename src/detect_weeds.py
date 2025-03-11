@@ -18,26 +18,6 @@ from typing import Optional, Dict
 # Configure logging
 log = logging.getLogger(__name__)
 
-class ImageLoader:
-    """
-    A class for loading images from a given directory.
-    """
-    def __init__(self, image_dir: Path):
-        self.image_dir = image_dir
-
-    def read_image(self, image_path: str) -> Optional[np.ndarray]:
-        """
-        This function reads the image from the given path.
-
-        Parameters:
-            image_path (str): Path to the image file.
-
-        Returns:
-            np.ndarray: Image as a numpy array.
-        """
-        log.info(f"Reading image from {image_path}.")
-        image = cv2.cvtColor(cv2.imread(str(image_path)), cv2.COLOR_BGR2RGB)
-        return image
 
 class WeedDetector:
     """
@@ -55,8 +35,8 @@ class WeedDetector:
             None
         """
         self.model = YOLO(model_path)
-
-    def detect_weeds(self, image: np.ndarray, image_path: str) -> Optional[Dict[str, Dict[str, int]]]:
+    
+    def detect_weeds(self, image: np.ndarray) -> Optional[Dict[str, Dict[str, int]]]:
         """
         Detects target weed in the given image.
 
@@ -70,65 +50,25 @@ class WeedDetector:
         results = self.model(image)
 
         if not results or not results[0].boxes.xyxy.tolist():
-            log.warning(f"No detection found for image: {image_path}.")
+            log.warning("No detection found.")
+            bbox = None
+            det_pred_conf = None
             return None
+        
+        else:
+            # Extract the detection confidence score
+            det_pred_conf = f"{results[0].boxes.conf.item():.3f}"
 
-        # Extract the detection confidence score
-        log.info("Weed detected.")
-        det_pred_conf = f"{results[0].boxes.conf.item():.3f}"
-
-        # Extract the bounding box coordinates
-        bbox = results[0].boxes.xyxy.tolist()[0]
-        x_min, y_min, x_max, y_max = map(int, bbox)
-        detection_results = {
-            "image_id": None,
-            "bbox": {
-                "x_min": x_min,
-                "y_min": y_min,
-                "x_max": x_max,
-                "y_max": y_max
-            },
+            # Extract the bounding box coordinates
+            bbox = results[0].boxes.xyxy.tolist()[0]
+            x_min, y_min, x_max, y_max = map(int, bbox)
+            bbox_height = y_max - y_min
+            bbox_width = x_max - x_min
+            bbox = [x_min, y_min, bbox_width, bbox_height]
+            return {
+            "bbox": bbox,
             "det_pred_conf": det_pred_conf
         }
-        return detection_results
-
-class ImageProcessor:
-    """
-    A class for processing images, including cropping and saving.
-    """
-
-    @staticmethod
-    def crop_image(image: np.ndarray, bbox: Dict[str, int]) -> Optional[np.ndarray]:
-        """
-        This function crops the detected region from the image based on the bounding box.
-
-        Parameters:
-            image (np.ndarray): Image as a numpy array.
-            bbox (dict): Bounding box coordinates.
-
-        Returns:  
-            np.ndarray: Cropped image.
-        """
-        x_min, y_min, x_max, y_max = bbox["x_min"], bbox["y_min"], bbox["x_max"], bbox["y_max"]
-        cropout_image = image[y_min:y_max, x_min:x_max]
-        log.info("Image cropping completed.")
-        return cropout_image
-
-    @staticmethod
-    def save_image(image: np.ndarray, image_path: Path) -> None:
-        """
-        Saves the image to the specified path.
-        
-        Parameters:
-            image (np.ndarray): Image as a numpy array.
-            image_path (Path): Path to save the image.
-
-        Returns:
-            None
-        """
-        image_bgr = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-        cv2.imwrite(str(image_path), image_bgr, [int(cv2.IMWRITE_JPEG_QUALITY), 100])
-        log.info(f"Image saved to {image_path}.")
 
 
 class MetadataExtractor:
@@ -146,6 +86,8 @@ class MetadataExtractor:
         Returns:
             None
         """
+        # Output metadata directory
+        self.image_metadata_dir = Path(cfg.paths.temp_dir) / "metadata"
         self.csv_path = cfg.paths.merged_tables_permanent
         self.species_info_path = cfg.paths.field_species_info
         self.metadata_version = cfg.metadata_version
@@ -156,6 +98,8 @@ class MetadataExtractor:
 
         with open(self.species_info_path, "r") as file:
             self.species_info = json.load(file)
+
+        self.species_info_common_name_remapped = {v["common_name"]: {"class_id":v["class_id"], "alias": v["alias"]} for k, v in self.species_info['species'].items()}
 
     def get_class_id(self, image_name: str) -> Optional[str]:
         """
@@ -170,12 +114,15 @@ class MetadataExtractor:
         log.info(f"Loading image data for {image_name}.")
 
         # Find the species for the given image
-        species_series = self.df[self.df["Name"].str.lower() == image_name.lower()]["Species"]
-        species = [str(species).lower() for species in species_series][0]
+        species_series = self.df[self.df["Name"].str.lower() == image_name.lower()]["Species"] # Common name
+        species = [str(species).lower() for species in species_series][0] 
 
-        if species_series.empty:
+        # Add logic for finding if species is a Nan
+        print(f"IMAGE NAME in get_class_id: {image_name}")
+        if species == "nan" or species == np.nan:
             log.warning(f"Species data not found for image: {image_name}.")
             self.missing_data_notes.append(f"Missing species data for {image_name}. Species in persistent table: {species}.")
+            return None
 
         class_id = self._find_class_id(species)
         log.info(f"Class ID: {class_id}")
@@ -205,8 +152,7 @@ class MetadataExtractor:
         
         log.warning(f"Species '{species}' not found in the species info.")
     
-    @staticmethod
-    def get_exif_data(image_path: str) -> dict:
+    def get_exif_data(self, image_path: str) -> dict:
         """
         Extracts EXIF metadata from an image and returns it as an ImageMetadata dataclass.
 
@@ -226,7 +172,7 @@ class MetadataExtractor:
         f.close()
 
         # Initialize an empty dictionary to hold processed metadata
-        filtered_exif_data = {}
+        exif_data = {}
 
         # Iterate over the extracted tags and process them
         for x, y in tags.items():
@@ -241,65 +187,49 @@ class MetadataExtractor:
                 newval = str(newval)
 
             # Clean up the tag key by removing unnecessary prefixes
-            filtered_exif_data[x.rsplit(" ")[1]] = newval
+            exif_data[x.rsplit(" ")[1]] = newval
 
-        # # Create an instance of ImageMetadata with the processed metadata
-        # imgmeta = ImageMetadata(**meta)
+        # Filter exif data
+        filtered_exif_data = self.filter_exif_data(exif_data)
         return filtered_exif_data
         
-    def save_image_metadata(self, image_path: str, detection_results: dict, image_metadata_dir: Path, exif_data: dict) -> None:
+    def save_image_metadata(self, image_path: Path, image_info: dict, detection_results: dict, plant_field_info: dict, category: dict, exif_data: dict) -> None:
         """
         This function saves the metadata extracted from the image.
         
         Parameters:
-            image_path (str): Path to the image file.
-            detection_results (dict): Detection results.
-            output_dir (Path): Directory to save the metadata.
-            exif_data (dict): Extracted EXIF data.
+        
 
         Returns:
             None
         """
-        log.info("Extracting metadata")
-        # Extract the image information, plant field information, category, and relevant EXIF data
-        image_name = Path(image_path).name
-        image_info = self.df[self.df["Name"].str.lower() == image_name.lower()]
-        if image_info.empty:
-            raise ValueError(f"Image '{image_name}' not found in the dataframe.")
-
-        image_info_dict = self._get_image_info(image_info)
-        plant_field_info_dict = self._get_plant_field_info(image_info)
-        category = self._get_category(image_name)
-
-        for key in ('collection_location', 'collection_timing'):
-            category.pop(key, None)  # `None` prevents KeyError if key doesn't exist
-
-        exif_data_imp_dict = self._get_exif_data(exif_data)
-
+        
         # Add missing data note to the metadata if any data is missing
         if self.missing_data_notes:
-            image_info_dict["Note"] = " ".join(self.missing_data_notes)
+            image_info["Note"] = " ".join(self.missing_data_notes)
         else:
-            image_info_dict["Note"] = None
+            image_info["Note"] = None
             
         # Combine the extracted metadata into a single dictionary
         combined_dict = {
-            "image_info": image_info_dict,
-            "plant_field_info": plant_field_info_dict,
-            "annotation": self._get_bbox_xywh_and_conf(detection_results),
+            "image_info": image_info,
+            "plant_field_info": plant_field_info,
+            "annotation": detection_results,
             "category": category,
-            "exif_meta": exif_data_imp_dict,
+            "exif_meta": exif_data,
             "version": self.metadata_version
         }
 
         # Save the metadata to a JSON file
-        metadata_filename = image_metadata_dir / f"{Path(image_path).stem}_0.json"
+        assert image_path.parent.name == "developed-images", f"Expected image_path.parent.name to be 'developed-images', but got {image_path.parent.name}."
+        metadata_dir = image_path.parent.parent / "cutouts"
+        metadata_filename = metadata_dir / f"{image_path.stem}_0.json"
         with open(metadata_filename, "w") as file:
             json.dump(combined_dict, file, indent=4, default=str)
         
         log.info(f"Metadata saved to {metadata_filename}.\n\n\n")
 
-    def _get_image_info(self, image_info: pd.DataFrame) -> dict:
+    def get_image_info(self, image_info: pd.DataFrame) -> dict:
         """
         This function extracts the image information from the dataframe.
 
@@ -333,7 +263,7 @@ class MetadataExtractor:
 
         return image_info_dict
 
-    def _get_plant_field_info(self, image_info: pd.DataFrame) -> dict:
+    def get_plant_field_info(self, image_info: pd.DataFrame) -> dict:
         """
         This function extracts the plant field information from the dataframe.
 
@@ -357,7 +287,7 @@ class MetadataExtractor:
 
         return plant_field_info_dict
 
-    def _get_category(self, image_name: str) -> dict:
+    def get_category(self, image_name: str) -> dict:
         """
         This function extracts the category information based on the class ID.
 
@@ -375,13 +305,18 @@ class MetadataExtractor:
         for _, species_value in species_info_copy.items():
             if species_value['class_id'] == class_id:
                 category = species_value
-                category.pop('alias') if 'alias' in category else None # delete class_id in the final metadata
+                # category.pop('alias') if 'alias' in category else None # delete class_id in the final metadata
                 break
             elif class_id is None:
-                category = {}
+                category = None
+
+        if category is not None:
+            for key in ('collection_location', 'collection_timing'):
+                category.pop(key, None)  # `None` prevents KeyError if key doesn't exist
+
         return category
 
-    def _get_exif_data(self, exif_data: dict) -> dict:
+    def filter_exif_data(self, exif_data: dict) -> dict:
         """
         This function extracts the relevant EXIF data.
 
@@ -408,26 +343,7 @@ class MetadataExtractor:
 
         return exif_data_imp_dict
 
-    def _get_bbox_xywh_and_conf(self, detection_results: dict) -> dict:
-        """
-        This function extracts the bounding box coordinates.
-
-        Parameters:
-            detection_results (dict): Detection results.
-
-        Returns:
-            dict: Extracted bounding box coordinates.
-        """
-        # Extract the bounding box coordinates
-        if detection_results is not None:
-            bbox_height = detection_results["bbox"]["y_max"] - detection_results["bbox"]["y_min"]
-            bbox_width = detection_results["bbox"]["x_max"] - detection_results["bbox"]["x_min"]
-            bbox_xywh = [detection_results["bbox"]["x_min"], detection_results["bbox"]["y_min"], bbox_width, bbox_height]
-            bbox_xywh_conf_dict = {"bbox_xywh": bbox_xywh, "det_pred_conf": detection_results["det_pred_conf"]}
-        else:
-            bbox_xywh_conf_dict = {"bbox_xywh": None, "det_pred_conf": None}
-
-        return bbox_xywh_conf_dict
+    
 
     @staticmethod
     def _custom_decoder(data: dict) -> dict:
@@ -480,25 +396,20 @@ class ProcessDetections:
         Returns:    
             None
         """
-        self.output_dir = Path(cfg.paths.temp_output_dir)
-        self.output_dir.mkdir(parents=True, exist_ok=True)
+        self.output_dir = Path(cfg.paths.temp_dir)
 
         self.weed_detector = WeedDetector(cfg.paths.yolo_weed_detection_model)
-        self.image_processor = ImageProcessor()
         self.metadata_extractor = MetadataExtractor(cfg)
 
-        # Loop through the batches
-        batches = list(Path(cfg.paths.temp_dir).iterdir())
-        for batch in batches:
-            image_dir = Path(batch /"developed-images")
-            self.image_loader = ImageLoader(image_dir)
-
-            # Loop through the images in the batch
-            for image_path in image_dir.iterdir():
-                if image_path.suffix.lower() in {".jpg", ".jpeg", ".png", ".JPG", ".JPEG"}:
-                    self.image_path = Path(image_path)
-                    self.process_image(self.image_path)
-
+    def load_image(self, image_path: Path) -> np.ndarray:
+        """
+        This function loads the image from the given path.
+        """
+        image = cv2.cvtColor(cv2.imread(str(image_path)), cv2.COLOR_BGR2RGB)
+        if image is None:
+            log.warning(f"No image present for processing.")
+            return
+        return image
     def process_image(self, image_path: Path) -> None:
         """
         This function processes the image by detecting weeds and saving the metadata.
@@ -509,29 +420,58 @@ class ProcessDetections:
         Returns:
             None
         """
-        image = self.image_loader.read_image(self.image_path)
-        image_metadata_dir = Path(os.path.join(os.path.dirname(os.path.dirname(image_path)), 'cutouts')) # save metadata in the same batch as the image
-        # Create the metadata directory if it doesn't exist
-        os.makedirs(image_metadata_dir, exist_ok=True)
-
-        if image is None:
-            log.warning(f"No image present for processing.")
-            return
-
-        class_id = self.metadata_extractor.get_class_id(image_path.name)
-        if not class_id:
-            log.warning(f"Class_id not found for {image_path}.")
+        image_name = image_path.name
+        # Get the table metadata
+        table_metadata = self.metadata_extractor.df[self.metadata_extractor.df["Name"].str.lower() == image_name.lower()]
         
-        # Detect weeds in the image
-        detection_results = self.weed_detector.detect_weeds(image, image_path)
-        if detection_results is not None:
-            detection_results["image_id"] = Path(self.image_path).stem
-            detection_results["class_id"] = class_id
-            
-        exif_data = self.metadata_extractor.get_exif_data(str(self.image_path))
+        # Load and make directories
+        image = self.load_image(image_path)
+
+        # Get image info
+        image_info = self.metadata_extractor.get_image_info(table_metadata)
+
+        # Get "annotation" metadata
+        detection_results = self.weed_detector.detect_weeds(image)
+        
+        # Get plant_field_info metadata
+        plant_field_info = self.metadata_extractor.get_plant_field_info(table_metadata)
+
+        # category metadata
+        category = self.metadata_extractor.get_category(image_name)
+
+        # exif_metadata    
+        exif_data = self.metadata_extractor.get_exif_data(str(image_path))
 
         # Save the image metadata
-        self.metadata_extractor.save_image_metadata(str(self.image_path), detection_results, image_metadata_dir, exif_data)
+        self.metadata_extractor.save_image_metadata(
+            image_path, 
+            image_info,
+            detection_results, 
+            plant_field_info, 
+            category, 
+            exif_data
+            )
+    
+    def process_images(self) -> None:
+        """
+        This function processes all the images in the directory.
+
+        Returns:
+            None
+        """
+        log.info("Processing images.")
+        # Loop through the batches
+        batches = list(self.output_dir.iterdir())
+        for batch in batches:
+            image_dir = Path(batch /"developed-images")
+            image_metadata_dir = batch /  'cutouts' # save metadata in the same batch as the image
+            image_metadata_dir.mkdir(exist_ok=True)
+            # Loop through the images in the batch
+            for image_path in image_dir.iterdir():
+                if image_path.suffix.lower() in {".jpg", ".jpeg", ".png", ".JPG", ".JPEG"}:
+                    # self.image_path = Path(image_path)
+                    self.metadata_extractor.missing_data_notes = [] # reset missing data notes
+                    self.process_image(image_path)
 
 def main(cfg: DictConfig) -> None:
     """
@@ -544,5 +484,6 @@ def main(cfg: DictConfig) -> None:
         None
     """
     log.info(f"Starting {cfg.general.task}")
-    ProcessDetections(cfg)
+    processdetections = ProcessDetections(cfg)
+    processdetections.process_images()
     log.info(f"{cfg.general.task} completed.")

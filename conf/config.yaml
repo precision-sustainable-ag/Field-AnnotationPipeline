@@ -11,9 +11,9 @@ hydra:
 pipeline:
   # - find_unprocessed_batches
   # - download_batch
-  # - detect_weeds
+  - detect_weeds
   # - unet_segment_weeds
-  - inspection
+  # - inspection
 
 download_batch:
   use_multithreading: True
