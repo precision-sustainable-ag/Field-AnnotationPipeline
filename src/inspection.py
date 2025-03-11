@@ -25,6 +25,7 @@ class InspectMetadataCutouts:
             cfg (DictConfig): Configuration object containing necessary paths.
         """
         self.cfg = cfg
+        self.batch_id = cfg.batch_id
         self.df = pd.read_csv(cfg.paths.merged_tables_permanent, low_memory=False)
 
         # Number of random images to inspect per batch
@@ -32,7 +33,7 @@ class InspectMetadataCutouts:
         
         # Set up directories
         self.temp_dir = Path(cfg.paths.temp_dir)
-        self.inspection_dir = Path(cfg.paths.inspection_dir)
+        self.inspection_dir = Path(self.temp_dir) / self.batch_id / "inspection"
         self.inspection_dir.mkdir(parents=True, exist_ok=True)
 
     def _read_image_convert_rgb(self, image_path: Path) -> np.ndarray:
@@ -106,44 +107,41 @@ class InspectMetadataCutouts:
         up to 10 images per batch for inspection, and saving their visualization.
         """
         log.info("Starting inspection image saving process.")
-        batches = list(Path(self.temp_dir).iterdir()) # list batches in the pipeline results directory
+        batch = Path(self.temp_dir / self.batch_id)
+        img_dir = Path(batch / "cutouts")
+        log.info(f"Inspecting cutouts in batch: {img_dir}")
 
-        for batch in batches:
-            img_dir = Path(batch / "cutouts")
-            log.info(f"Inspecting cutouts in batch: {img_dir}")
+        inspection_batch = self.inspection_dir # create inspection batch directory
 
-            inspection_batch = self.inspection_dir / batch.name # create inspection batch directory
-            inspection_batch.mkdir(parents=True, exist_ok=True)
- 
-            cropped_images = list(Path(img_dir).rglob("*.jpg"))
+        cropped_images = list(Path(img_dir).rglob("*.jpg"))
 
-            if len(cropped_images) == 0: 
-                log.info(f"No processed images found in {batch}.")
-            elif 0 < len(cropped_images) < self.num_random_images_to_inspect:
-                log.info(f"Found less than {self.num_random_images_to_inspect} images in {batch}. Using all images for inspection.")
-                for image_path in cropped_images:
-                    mask_path  = f"{str(image_path).replace('.jpg', '_mask.png')}"
-                    cutout_path = f"{str(image_path).replace('.jpg', '.png')}"
-                    log.info(f"Processing image: {image_path}")
-                    image_stem = (image_path.stem).replace('_0', '')
-                    species = self._extract_species(image_stem)
-                    cropped_image = self._read_image_convert_rgb(image_path)
-                    mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
-                    cutout = self._read_image_convert_rgb(cutout_path)
-                    self._save_image(inspection_batch, image_path, cropped_image, mask, cutout, species)
-            else:
-                log.info(f"Found more than {self.num_random_images_to_inspect} images in {batch}. Using {self.num_random_images_to_inspect} random images for inspection.")
-                randomly_selected_images = random.sample(cropped_images, self.num_random_images_to_inspect)
-                for image_path in randomly_selected_images:
-                    mask_path  = f"{str(image_path).replace('.jpg', '_mask.png')}"
-                    cutout_path = f"{str(image_path).replace('.jpg', '.png')}"
-                    log.info(f"Processing image: {image_path}")
-                    image_stem = (image_path.stem).replace('_0', '')
-                    species = self._extract_species(image_stem)
-                    cropped_image = self._read_image_convert_rgb(image_path)
-                    mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
-                    cutout = self._read_image_convert_rgb(cutout_path)
-                    self._save_image(inspection_batch, image_path, cropped_image, mask, cutout, species)
+        if len(cropped_images) == 0: 
+            log.info(f"No processed images found in {batch}.")
+        elif 0 < len(cropped_images) < self.num_random_images_to_inspect:
+            log.info(f"Found less than {self.num_random_images_to_inspect} images in {batch}. Using all images for inspection.")
+            for image_path in cropped_images:
+                mask_path  = f"{str(image_path).replace('.jpg', '_mask.png')}"
+                cutout_path = f"{str(image_path).replace('.jpg', '.png')}"
+                log.info(f"Processing image: {image_path}")
+                image_stem = (image_path.stem).replace('_0', '')
+                species = self._extract_species(image_stem)
+                cropped_image = self._read_image_convert_rgb(image_path)
+                mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
+                cutout = self._read_image_convert_rgb(cutout_path)
+                self._save_image(inspection_batch, image_path, cropped_image, mask, cutout, species)
+        else:
+            log.info(f"Found more than {self.num_random_images_to_inspect} images in {batch}. Using {self.num_random_images_to_inspect} random images for inspection.")
+            randomly_selected_images = random.sample(cropped_images, self.num_random_images_to_inspect)
+            for image_path in randomly_selected_images:
+                mask_path  = f"{str(image_path).replace('.jpg', '_mask.png')}"
+                cutout_path = f"{str(image_path).replace('.jpg', '.png')}"
+                log.info(f"Processing image: {image_path}")
+                image_stem = (image_path.stem).replace('_0', '')
+                species = self._extract_species(image_stem)
+                cropped_image = self._read_image_convert_rgb(image_path)
+                mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
+                cutout = self._read_image_convert_rgb(cutout_path)
+                self._save_image(inspection_batch, image_path, cropped_image, mask, cutout, species)
         log.info("Inspection completed.")
 
 def main(cfg: DictConfig) -> None:
