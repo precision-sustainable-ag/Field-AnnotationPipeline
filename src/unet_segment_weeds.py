@@ -1,4 +1,3 @@
-import sys
 import cv2
 import json
 import torch
@@ -13,11 +12,6 @@ from src.utils.unet import UNet
 from omegaconf import DictConfig
 from torchvision import transforms
 
-# Configure logging
-logging.basicConfig(
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    level=logging.INFO
-)
 log = logging.getLogger(__name__)
 
 # Set device (GPU if available, else CPU)
@@ -39,6 +33,7 @@ class UNetInference:
         
         # Set up directories
         self.temp_dir = Path(cfg.paths.temp_dir)
+        self.batch_id = cfg.batch_id
 
         self.trained_model_path = cfg.paths.unet_segmentation_model
         log.info(f"Trained UNet model located at: {self.trained_model_path}")
@@ -256,10 +251,10 @@ class UNetInference:
             with open(json_path, 'r') as f:
                 data = json.load(f)
 
-            if data["annotation"]["bbox_xywh"] is not None:
+            if data["annotation"]["bbox"] is not None:
                 image_id = data["image_info"]["Name"]
                 class_id = data["category"]["class_id"]
-                bbox = data["annotation"]["bbox_xywh"]
+                bbox = data["annotation"]["bbox"]
 
                 x_max, y_max = bbox[0] + bbox[2], bbox[1] + bbox[3]
                 # Internal bbox structure to include image_id, class_id, and different format for bbox
@@ -283,31 +278,30 @@ class UNetInference:
                 return None, None
            
         else:
-            log.error(f"No JSON file found for {json_path}\n\n\n")
+            log.error(f"No JSON file found for {json_path}.")
             return None
         
     def process_directory(self):
         """
         Processes all images in the test directory for segmentation inference.
         """
-        batches = list(Path(self.temp_dir).iterdir())
+        batch = self.temp_dir / self.batch_id
 
-        for batch in batches:
-            img_dir = Path(batch / "developed-images")
-            log.info(f"Processing images in directory: {img_dir}\n\n\n")
-            images = sorted(list(img_dir.rglob("*.jpg")))
-            for img_path in images:
-                save_dir = Path(img_path).parent.parent / "cutouts"
-                input_paths = (img_path, save_dir)
-                try:
-                    _, _bbox = self.process_image(input_paths)
-                except Exception as e:
-                    log.error(f"Error processing image: {img_path}", exc_info=True)
-                    
-                try:
-                    self.save_image(img_path, _bbox)
-                except Exception as e:
-                    log.error(f"Error saving image: {img_path}", exc_info=True)
+        img_dir = Path(batch / "developed-images")
+        log.info(f"Processing images in directory: {img_dir}.")
+        images = sorted(list(img_dir.rglob("*.jpg")))
+        for img_path in images:
+            save_dir = Path(img_path).parent.parent / "cutouts"
+            input_paths = (img_path, save_dir)
+            try:
+                _, _bbox = self.process_image(input_paths)
+            except Exception as e:
+                log.error(f"Error processing image: {img_path}", exc_info=True)
+                
+            try:
+                self.save_image(img_path, _bbox)
+            except Exception as e:
+                log.error(f"Error saving image: {img_path}", exc_info=True)
 
         log.info("Segmentation completed.")
 

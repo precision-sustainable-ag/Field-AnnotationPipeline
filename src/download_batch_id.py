@@ -48,6 +48,7 @@ class BatchDownloader:
 
 
 def main(cfg):
+    log.info(f"Starting {cfg.general.task}")
     batch_id = cfg.batch_id
     downloader = BatchDownloader(cfg, batch_id)
     downloader.download_batch()

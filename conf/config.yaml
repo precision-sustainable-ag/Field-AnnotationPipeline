@@ -12,11 +12,12 @@ pipeline:
   # - find_unprocessed_batches
   # - download_batch
   - synch_from_remote
+  - download_batch_id
   - build_metadata
   - classify_mat
   - detect_weeds
-  # - unet_segment_weeds
-  # - inspection
+  - unet_segment_weeds
+  - inspection
 
 batch_id: AL_2023-08-25
 download_batch:

@@ -88,7 +88,7 @@ class ProcessDetections:
             None
         """
         self.output_dir = Path(cfg.paths.temp_dir)
-
+        self.batch_id = cfg.batch_id
         self.weed_detector = WeedDetector(cfg.paths.yolo_weed_detection_model)
 
     def update_metadata(self, metadata_path: Path, metadata: dict) -> None:
@@ -181,22 +181,18 @@ class ProcessDetections:
         Returns:
             None
         """
-        log.info("Processing images.")
-        # Loop through the batches
-        batches = list(self.output_dir.iterdir())
-        batches = [x for x in batches if x.name == "AL_2023-08-17"]
-        for batch in batches:
-            image_dir = Path(batch /"developed-images")
-            image_metadata_dir = batch /  'cutouts' # save metadata in the same batch as the image
-            image_metadata_dir.mkdir(exist_ok=True)
-            # Loop through the images in the batch
-            image_paths = sorted(list(image_dir.glob("*.JPG")) + list(image_dir.glob("*.jpg")))
-            # image_paths = [x for x in image_paths if x.stem == "ALA00118"]
-            for image_path in image_paths:
-                self.weed_detector.missing_detection_notes = []
-                self.process_image_sequentially(image_path)
-            log.info(f"Processed {len(image_paths)} images in {batch.name}.")
-        log.info("All images processed.")
+        log.info(f"Processing images for {self.batch_id}.")
+        image_dir = Path(self.output_dir / self.batch_id /"developed-images")
+        image_metadata_dir = Path(self.output_dir) / self.batch_id /  'cutouts' # save metadata in the same batch as the image
+        image_metadata_dir.mkdir(exist_ok=True)
+        # Loop through the images in the batch
+        image_paths = sorted(list(image_dir.glob("*.JPG")) + list(image_dir.glob("*.jpg")))
+        # image_paths = [x for x in image_paths if x.stem == "ALA00118"]
+        for image_path in image_paths:
+            self.weed_detector.missing_detection_notes = []
+            self.process_image_sequentially(image_path)
+        log.info(f"Processed {len(image_paths)} images in {self.batch_id}.")
+        
 
 def main(cfg: DictConfig) -> None:
     """
