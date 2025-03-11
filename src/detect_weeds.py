@@ -199,8 +199,9 @@ class MetadataExtractor:
             if values["common_name"].lower() == species:
                 return values["class_id"]
             elif 'alias' in values: # if different common names exists, use alias to match
-                if values['alias'].lower() == species:
-                    return values['class_id']
+                for alias in values['alias']:
+                    if alias.lower() == species:
+                        return values['class_id']
         
         log.warning(f"Species '{species}' not found in the species info.")
     
