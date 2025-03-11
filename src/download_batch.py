@@ -33,7 +33,7 @@ class BatchDownloader:
         log.info("Initializing BatchDownloader.")
         self.cfg = cfg
         self.report_dir = Path(cfg.paths.reports)
-        self.longterm_storage = Path(cfg.paths.longterm_storage)
+        self.longterm_storage = Path(cfg.paths.longterm_storage, "field-batches")
         self.temp_storage = Path(cfg.paths.temp_dir)
         self.temp_storage.mkdir(parents=True, exist_ok=True)
         

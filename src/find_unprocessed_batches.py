@@ -21,7 +21,7 @@ class BatchChecker:
 
     def __init__(self, cfg: DictConfig) -> None:
         self.cfg = cfg
-        self.longterm_storage = Path(self.cfg.paths.longterm_storage)
+        self.longterm_storage = Path(self.cfg.paths.longterm_storage, "field-batches")
 
         # Ensure the report directory exists
         self.report_dir = Path(cfg.paths.reports)

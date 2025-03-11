@@ -11,6 +11,9 @@ hydra:
 pipeline:
   # - find_unprocessed_batches
   # - download_batch
+  - synch_from_remote
+  - build_metadata
+  - classify_mat
   - detect_weeds
   # - unet_segment_weeds
   # - inspection
