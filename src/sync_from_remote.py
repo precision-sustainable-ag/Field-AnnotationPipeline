@@ -62,6 +62,10 @@ def main(cfg: DictConfig) -> None:
             "local": Path(cfg.paths.field_species_info),
             "remote": Path(cfg.paths.longterm_images2) / "semifield-utils" / "species_information" / "species_info.json",
         },
+        "persistent_data_table": {
+            "local": Path(cfg.paths.merged_tables_permanent),
+            "remote": Path("/mnt/research-projects/r/raatwell/longterm_images3/field-tools/persistent_data_tables/merged_blobs_tables_metadata_lts.csv"),
+        },
     }
 
     for name, paths in model_files.items():
