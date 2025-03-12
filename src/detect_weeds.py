@@ -56,10 +56,10 @@ class WeedDetector:
                 max_conf_idx = confidences.index(max(confidences))
                 bbox = results[0].boxes.xyxy.tolist()[max_conf_idx]
                 # confidence of the detection
-                det_pred_conf = f"{results[0].boxes.conf[max_conf_idx].item():.3f}"
+                det_pred_conf = round(results[0].boxes.conf[max_conf_idx].item(), 6)
             else:
                 # Extract the detection confidence score
-                det_pred_conf = f"{results[0].boxes.conf.item():.3f}"
+                det_pred_conf = round(results[0].boxes.conf.item(), 6)
                 # Extract the bounding box coordinates
                 bbox = results[0].boxes.xyxy.tolist()[0]
             
