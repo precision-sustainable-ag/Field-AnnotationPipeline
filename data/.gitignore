@@ -1,2 +1,4 @@
 *
 !.gitignore
+!field-utils
+!field-utils/species_info.json

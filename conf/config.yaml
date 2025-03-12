@@ -10,11 +10,17 @@ hydra:
 
 pipeline:
   # - find_unprocessed_batches
-  # - download_batch
-  # - detect_weeds
-  # - unet_segment_weeds
+  - sync_from_remote
+  - copy_to_temp
+  - build_metadata
+  - classify_mat
+  - detect_weeds
+  - unet_segment_weeds
   - inspection
+  - copy_to_lts
+  - cleanup
 
+batch_id: AL_2023-08-25
 download_batch:
   use_multithreading: True
   download_limit: 2
