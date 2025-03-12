@@ -12,7 +12,7 @@ unet_segmentation_model : ${paths.datadir}/field-tools/models/unet/unet_segmenta
 # unet_segmentation_model : ${paths.datadir}/models/unet_old_resizing_issues/unet_segmentation.pth
 
 # data paths
-merged_tables_permanent: ${paths.datadir}/persistent_tables/merged_blobs_tables_metadata_permanent.csv
+merged_tables_permanent: ${paths.datadir}/field-tools/persistent_tables/merged_blobs_tables_metadata_lts.csv
 field_species_info: ${paths.datadir}/field-utils/species_info.json
 
 # longterm storage for field images
