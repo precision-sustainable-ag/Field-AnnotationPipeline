@@ -33,7 +33,7 @@ class Batch2LTS:
             log.error(f"Batch {self.batch_id} cutouts folder not found in local temp. Exiting.")
             return proceed_flag
         
-        # check if each file in the batch has a corresponding .jpg, .json, .png, and _mask.png file
+        # check if each file in the batch has a corresponding .json file
         developed_images = self.dst_longterm_cutouts.parent / "developed-images"
         dev_imgs = developed_images.glob("*.jpg")
         dev_stems = [img.stem for img in dev_imgs]

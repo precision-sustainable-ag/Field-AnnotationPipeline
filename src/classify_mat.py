@@ -11,7 +11,7 @@ from typing import Optional, Dict
 log = logging.getLogger(__name__)
 
 
-class WeedClassifier:
+class MatClassifier:
     """
     A class for detecting weeds in images using YOLOv5.
     """
@@ -30,7 +30,7 @@ class WeedClassifier:
     
     def classify_image(self, image: Path) -> Optional[Dict[str, Dict[str, int]]]:
         """
-        Detects target weed in the given image.
+        Classify  mat in the given image.
 
         Parameters:
             image (np.ndarray): Image as a numpy array.
@@ -39,7 +39,6 @@ class WeedClassifier:
             dict: Detection results including bbox if detection is successful; otherwise, returns None.
         """
         log.debug("Starting mat classification.")
-        class_results = []
         # Predict classes and probabilities
         results = self.model(image)  # predict on an image
         assert len(results) == 1, "Only one image should be processed at a time."
@@ -53,7 +52,6 @@ class WeedClassifier:
                 "HasMatPred": hasmat, 
                 "HasMatPredConf": top1conf
                 }
-            # class_results.append(result)
             return result
 
         # return class_results
@@ -75,7 +73,7 @@ class ProcessDetections:
         """
         self.output_dir = Path(cfg.paths.temp_dir)
         self.batch_id = cfg.batch_id
-        self.weed_classifier = WeedClassifier(cfg.paths.yolo_mat_classifier)
+        self.weed_classifier = MatClassifier(cfg.paths.yolo_mat_classifier)
 
     def update_metadata(self, metadata_path: Path, metadata: dict) -> None:
         

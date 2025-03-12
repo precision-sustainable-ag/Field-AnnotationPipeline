@@ -136,9 +136,6 @@ class ProcessDetections:
             pass
         
         else:
-            print(self.weed_detector.missing_detection_notes)
-            print()
-            print(metadata["image_info"]["Note"])
             raise ValueError("Error in updating notes.")
 
         return metadata
@@ -154,7 +151,6 @@ class ProcessDetections:
         Returns:
             None
         """
-        image_name = image_path.name
         batch_dir = image_path.parent.parent
 
         # Get metadata

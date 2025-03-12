@@ -35,6 +35,7 @@ def update_file(local_file: Path, remote_file: Path):
     """Copy remote file to local if they are different."""
     try:
         log.info(f"Updating {local_file} from {remote_file}")
+        local_file.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(remote_file, local_file)
         log.info(f"Update complete: {local_file}")
     except Exception as e:
