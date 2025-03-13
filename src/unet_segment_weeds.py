@@ -92,21 +92,17 @@ class UNetInference:
             np.ndarray: The full-size mask for the input image.
         """
         height, width = image.shape[:2]
-        tile_h, tile_w = height // 2, width // 2
-        step_h, step_w = tile_h - overlap_pixels, tile_w - overlap_pixels
+        step_h, step_w = np.ceil(height / 2).astype(int), np.ceil(width / 2).astype(int) # Calculate step size as rounded to next integer value
+        tile_h, tile_w = step_h + overlap_pixels, step_w + overlap_pixels # tiles size with overlap pixels for prediction
 
         pred_mask = np.zeros((height, width), dtype=np.float32)
-
         for y in range(0, height, step_h):
             for x in range(0, width, step_w):
                 y_end, x_end = min(y + tile_h, height), min(x + tile_w, width) # Calculate end coordinates for tile
-
                 tile = image[y:y_end, x:x_end] # Extract tile from image
                 tile_pred = self._predict_mask(tile) # Predict mask for tile
                 tile_pred_sequeezed = tile_pred.squeeze() # Remove the channel dimension               
-
-                pred_mask[y:y_end, x:x_end] = np.maximum(pred_mask[y:y_end, x:x_end], tile_pred_sequeezed) # Combine overlapping tiles by taking the maximum value
-
+                pred_mask[y:y_end, x:x_end] = np.maximum(pred_mask[y:y_end, x:x_end], tile_pred_sequeezed) # Combine overlapping tiles by taking the maximum pixel value
         return pred_mask
 
     def _resize_and_pad_mask(self, pred_mask: np.ndarray, bbox: tuple, full_size: tuple):
@@ -136,8 +132,10 @@ class UNetInference:
     
     def pred_mask(self, cropped_image: np.ndarray):
         if cropped_image.shape[0] < 4000 and cropped_image.shape[1] < 4000:
+            log.info(f"Image size is smaller than (4000,4000). Processing image without tiling.")
             pred_mask = self._predict_mask(cropped_image)
         else:
+            log.info(f"Image size is larger than (4000,4000). Processing image in tiles.")
             pred_mask = self._process_image_in_tiles(cropped_image) # Process in tiles
         return pred_mask
 
@@ -166,15 +164,13 @@ class UNetInference:
         # Save final cutout
         cv2.imwrite(str(self.cutout_dir / cutout_name), final_cutout_rgb.astype(np.uint8))
         log.debug(f"Final cutout saved: {str(self.cutout_dir / cutout_name)}")
-
-    
     
     def process_image(self, input_paths):
         """
         Process an image and its corresponding JSON file.
         """
         image_path, json_path = input_paths
-
+        log.info(f"Processing image: {image_path}")
         # Check if the metadata for the image exists
         metadata = self.read_metadata(json_path)
         
