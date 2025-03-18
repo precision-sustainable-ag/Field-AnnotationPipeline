@@ -83,7 +83,7 @@ class UNetInference:
 
         return pred_mask
     
-    def _process_image_in_tiles(self, image: np.ndarray, overlap_pixels=500):
+    def _predict_mask_in_tiles(self, image: np.ndarray, overlap_pixels=500):
         """Process the image in tiles to avoid memory issues.
         Args:
             image (np.ndarray): The input image.
@@ -136,7 +136,7 @@ class UNetInference:
             pred_mask = self._predict_mask(cropped_image)
         else:
             log.info(f"Image size is larger than (4000,4000). Processing image in tiles.")
-            pred_mask = self._process_image_in_tiles(cropped_image) # Process in tiles
+            pred_mask = self._predict_mask_in_tiles(cropped_image) # Process in tiles
         return pred_mask
 
     def save_image(
