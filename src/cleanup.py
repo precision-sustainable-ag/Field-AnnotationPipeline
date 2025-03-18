@@ -54,6 +54,7 @@ class CleanUpLocalTemp:
             try:
                 shutil.rmtree(self.temp_developed)
                 shutil.rmtree(self.temp_cutouts)
+                shutil.rmtree(self.temp_inspected)
                 log.info(f"Removed temp directories for batch {self.batch_id}.")
             except Exception as e:
                 log.error(f"Failed to remove temp directories for batch {self.batch_id}: {e}")
