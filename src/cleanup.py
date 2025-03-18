@@ -1,7 +1,6 @@
 import logging
 import shutil
 from pathlib import Path
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 log = logging.getLogger(__name__)
 
