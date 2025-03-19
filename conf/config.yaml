@@ -19,8 +19,9 @@ pipeline:
   - inspection
   - copy_to_lts
   - cleanup
+  - manual_inspection
 
-batch_id: AL_2023-08-25
+batch_id: AL_2023-08-17
 download_batch:
   use_multithreading: True
   download_limit: 2
