@@ -14,7 +14,7 @@ log = logging.getLogger(__name__)
 GITHUB_REPO_URL = "https://github.com/precision-sustainable-ag/Field-AnnotationPipeline/issues"
 
 LABEL_OPTIONS = {
-                "1": "Good Mask",
+                "1": "Pass",
                 "2": "Bad Mask",
                 "3": "Incorrect Species",
                 "0": "Other",
@@ -27,6 +27,7 @@ class ManualInspection:
     """
     def __init__(self, cfg: DictConfig):
         self.batch_id = cfg.batch_id
+        self.longterm_storage_dir = Path(cfg.paths.longterm_storage)
         self.longterm_inspection_dir = Path(cfg.paths.longterm_storage) / "field-batches"/ self.batch_id/ "inspection"
         self.csv_file = self.longterm_inspection_dir / f"{self.batch_id}_preprocessing_inspection_results.csv"
         self.images = self._load_images()
@@ -61,11 +62,11 @@ class ManualInspection:
         """Prints instructions for user input."""
         print("\n--- Segmentation Quality Assessment ---")
         print_labels = {
-            "1": "Good Mask",
-            "2": "Bad Mask",
-            "3": "Incorrect Species",
-            "0": "Other",
-            "q": "Quit"
+            "1": "Pass ✅",
+            "2": "Bad Mask 🟥",
+            "3": "Incorrect Species 🔍",
+            "0": "Other ⚠️",
+            "q": "Quit ❌"
         }
         
         for key, label in print_labels.items():
@@ -162,7 +163,7 @@ class ManualInspection:
                 cv2.destroyAllWindows()
                 return self.csv_file  # Save progress and exit
 
-            self.results.append([self.batch_id, img_path.stem, label, self.timestamp, self.user, self.longterm_inspection_dir])
+            self.results.append([self.batch_id, img_path.stem, label, self.timestamp, self.user, Path(self.longterm_storage_dir).name])
             self._save_results()
             index += 1
 
