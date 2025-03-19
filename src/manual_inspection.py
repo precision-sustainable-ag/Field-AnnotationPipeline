@@ -6,6 +6,7 @@ import datetime
 import pandas as pd
 from pathlib import Path
 from omegaconf import DictConfig
+import time
 
 # Configure logging
 log = logging.getLogger(__name__)
@@ -109,8 +110,9 @@ class ManualInspection:
         print("\n⚠️ Some images have issues.")
         print(f"📌 Please report in our GitHub repository: {GITHUB_REPO_URL}")
         print("Mention the flagged images and describe the issues.")
-        
         if input("Would you like to review the flagged images for screenshots? (y/n): ").strip().lower() == 'y':
+            print("Waiting to allow the image viewer to load...")
+            time.sleep(10)
             self._display_flagged_images(flagged_images)
 
         print("\n📌 After taking screenshots, submit an issue on GitHub:")
