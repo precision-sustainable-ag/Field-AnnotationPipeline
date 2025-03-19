@@ -1,6 +1,7 @@
 import cv2
 import json
 import torch
+import GPUtil
 import logging
 import numpy as np
 
@@ -14,7 +15,8 @@ from torchvision import transforms
 log = logging.getLogger(__name__)
 
 # Set device (GPU if available, else CPU)
-device = "cuda" if torch.cuda.is_available() else "cpu"
+device_id = GPUtil.getAvailable(order = 'first', limit = 1, maxLoad = 0.1, maxMemory = 0.1, includeNan=False, excludeID=[], excludeUUID=[])[0]
+DEVICE = torch.device(f"cuda:{device_id}" if torch.cuda.is_available() else "cpu")
 
 class UNetInference:
     """
@@ -37,8 +39,8 @@ class UNetInference:
         self.trained_model_path = cfg.paths.unet_segmentation_model
         
         # Load UNet model
-        self.seg_model = UNet(in_channels=3, num_classes=1).to(device)
-        self.seg_model.load_state_dict(torch.load(self.trained_model_path, map_location=device, weights_only=True))
+        self.seg_model = UNet(in_channels=3, num_classes=1).to(DEVICE)
+        self.seg_model.load_state_dict(torch.load(self.trained_model_path, map_location=DEVICE, weights_only=True))
         self.seg_model.eval()
 
         # Define save directory
@@ -70,7 +72,7 @@ class UNetInference:
     def _predict_mask(self, cropped_image: np.ndarray):
         """Perform segmentation inference on the cropped image."""
         pil_image = Image.fromarray(cropped_image)
-        image_tensor = self.transform(pil_image).float().to(device).unsqueeze(0)
+        image_tensor = self.transform(pil_image).float().to(DEVICE).unsqueeze(0)
 
         pred_mask = self.seg_model(image_tensor)
         # Apply sigmoid to convert logits to probabilities (for binary)

@@ -20,7 +20,7 @@ pipeline:
   - copy_to_lts
   - cleanup
 
-batch_id: AL_2023-08-25
+batch_id: AL_2023-08-17
 download_batch:
   use_multithreading: True
   download_limit: 2
@@ -29,7 +29,7 @@ segment_weeds:
   multiprocess: False
 
 inspection:
-  num_random_images_to_inspect: 15
+  num_random_images_to_inspect: 50
 
 general:
   task: # Leave empty as placeholder
