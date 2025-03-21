@@ -117,21 +117,9 @@ class InspectMetadataCutouts:
 
         if len(cropped_images) == 0: 
             log.info(f"No processed images found in {batch}.")
-        elif 0 < len(cropped_images) < self.num_random_images_to_inspect:
-            log.info(f"Found less than {self.num_random_images_to_inspect} images in {batch}. Using all images for inspection.")
-            for image_path in cropped_images:
-                mask_path  = f"{str(image_path).replace('.jpg', '_mask.png')}"
-                cutout_path = f"{str(image_path).replace('.jpg', '.png')}"
-                log.info(f"Processing image: {image_path}")
-                image_stem = (image_path.stem).replace('_0', '')
-                species = self._extract_species(image_stem)
-                cropped_image = self._read_image_convert_rgb(image_path)
-                mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
-                cutout = self._read_image_convert_rgb(cutout_path)
-                self._save_image(inspection_batch, image_path, cropped_image, mask, cutout, species)
         else:
             log.info(f"Found more than {self.num_random_images_to_inspect} images in {batch}. Using {self.num_random_images_to_inspect} random images for inspection.")
-            randomly_selected_images = random.sample(cropped_images, self.num_random_images_to_inspect)
+            randomly_selected_images = sorted(random.sample(cropped_images, min(self.num_random_images_to_inspect, len(cropped_images))))
             for image_path in randomly_selected_images:
                 mask_path  = f"{str(image_path).replace('.jpg', '_mask.png')}"
                 cutout_path = f"{str(image_path).replace('.jpg', '.png')}"
