@@ -6,7 +6,6 @@ import datetime
 import pandas as pd
 from pathlib import Path
 from omegaconf import DictConfig
-import time
 
 # Configure logging
 log = logging.getLogger(__name__)
@@ -29,8 +28,10 @@ class ManualInspection:
     def __init__(self, cfg: DictConfig):
         self.batch_id = cfg.batch_id
         self.longterm_storage_dir = Path(cfg.paths.longterm_storage)
-        self.longterm_inspection_dir = Path(cfg.paths.longterm_storage) / "field-batches"/ self.batch_id/ "inspection"
-        self.csv_file = self.longterm_inspection_dir / f"{self.batch_id}_preprocessing_inspection_results.csv"
+        self.batch_dir = self.longterm_storage_dir / "field-batches" / self.batch_id
+        self.longterm_inspection_dir = self.batch_dir / "inspection"
+        self.csv_name = f"{self.batch_id}_annotation_inspection_results.csv"
+        self.csv_file = self.batch_dir / self.csv_name
         self.images = self._load_images()
         self.results = self._load_existing_results()
         self.timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -98,7 +99,7 @@ class ManualInspection:
     def _review_flagged_images(self):
         """Checks and offers to display flagged images for issue reporting."""
         df_final = pd.read_csv(self.csv_file)
-        flagged_images = df_final[df_final["Selection"] != "Good Mask"]
+        flagged_images = df_final[df_final["Selection"] != "Pass"]
 
         if flagged_images.empty:
             return self.csv_file
@@ -107,8 +108,6 @@ class ManualInspection:
         print(f"📌 Please report in our GitHub repository: {GITHUB_REPO_URL}")
         print("Mention the flagged images and describe the issues.")
         if input("Would you like to review the flagged images for screenshots? (y/n): ").strip().lower() == 'y':
-            print("Waiting to allow the image viewer to load...")
-            time.sleep(10)
             self._display_flagged_images(flagged_images)
 
         print("\n📌 After taking screenshots, submit an issue on GitHub:")
@@ -118,6 +117,7 @@ class ManualInspection:
 
     def _display_flagged_images(self, flagged_images):
         """Displays flagged images for screenshot capture."""
+        print("Press any key to continue to the next image.")
         for _, row in flagged_images.iterrows():
             img_path = self.longterm_inspection_dir / f"{row['ImageID']}.jpg"
             if not img_path.exists():
@@ -126,8 +126,7 @@ class ManualInspection:
             if img_path.exists():
                 image = cv2.imread(str(img_path))
                 cv2.imshow("Flagged Image", image)
-                print(f"📸 Take a screenshot for: {row['ImageID']} ({row['Selection']})\n")
-                print("Press any key to continue to the next image.")
+                print(f"📸 Take a screenshot for: {row['ImageID']} ({row['Selection']})")
                 key = cv2.waitKey(0) & 0xFF
                 if key == ord('q'):  # Allow early exit
                     break
@@ -139,21 +138,21 @@ class ManualInspection:
     def _confirm_save_results(self):
         """Ask the user if they want to save the final CSV. If not, delete the file."""
         while True:
-            confirm = input("\n💾 Do you want to save the final inspection results? (y/n): ").strip().lower()
+            confirm = input("\n💾 Do you want to save the inspection results? (y/n): ").strip().lower()
             
             if confirm == "y":
                 self._save_results()
                 log.info(f"✅ Inspection results saved to {self.csv_file}")
-                return self.csv_file  # File saved successfully
+                return True  # File saved successfully
 
             elif confirm == "n":
                 if self.csv_file.exists():
-                    if self.csv_file.name == f"{self.batch_id}_preprocessing_inspection_results.csv":
+                    if self.csv_file.name == self.csv_name:
                         self.csv_file.unlink()  # Delete the CSV
                         log.info(f"❌ Inspection results discarded. {self.csv_file} removed.")
                 else:
                     log.warning("⚠️ No saved CSV file found to delete.")
-                return None  # User discarded results
+                return False  # User discarded results
 
             else:
                 print("⚠️ Invalid input. Please enter 'y' to save or 'n' to discard.")
@@ -161,8 +160,7 @@ class ManualInspection:
     def review_images(self):
         """Iterate over images and allow the user to label them."""
         if not self.images:
-            log.info("✅ All images have been labeled. Exiting.")
-            return None
+            return True
 
         self._display_instructions()
         cv2.namedWindow("Inspection Viewer")
@@ -178,7 +176,8 @@ class ManualInspection:
             if label == "Quit":
                 print("\n❌ Exiting image review.")
                 cv2.destroyAllWindows()
-                return self.csv_file  # Save progress and exit
+                self._confirm_save_results()
+                return len(self.results) == len(self.images) # Return True if all images were labeled
 
             if label == "Back":
                 if index > 0:
@@ -196,7 +195,8 @@ class ManualInspection:
         cv2.destroyAllWindows()
         log.info("✅ Segmentation quality inspection completed.")
         self._review_flagged_images()
-        return self._confirm_save_results()
+        self._confirm_save_results()
+        return len(self.results) == len(self.images)
 
 @hydra.main(version_base="1.3", config_path="../conf", config_name="config")
 def main(cfg: DictConfig) -> None:
@@ -206,6 +206,7 @@ def main(cfg: DictConfig) -> None:
     # Initialize the ManualInspection class
     log.info("Starting the manual inspection process.")
     manual_inspection = ManualInspection(cfg)
-    src_csv_file = manual_inspection.review_images()
-    log.info(f"Inspection results saved to {src_csv_file}")
-    log.info("Image inspection completed.")
+    if manual_inspection.review_images():
+        log.info("✅ All images have been labeled. Inspection completed.")
+    else:
+        log.info("Image inspection aborted. Not all images labeled.")
