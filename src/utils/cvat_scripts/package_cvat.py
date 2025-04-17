@@ -29,7 +29,7 @@ class PackageCVAT:
             species_dir (Path): Path to the root directory containing a 'cutouts' folder with .jpg images and *_mask.png masks.
         """
         self.species_dir = Path(species_dir)
-        self.species = self.species_dir.name
+        self.species = str(self.species_dir.name).replace(" ", "_").lower()
         self.cutouts_dir = self.species_dir / "cutouts"
         
         # Collect all image and mask paths
@@ -38,15 +38,15 @@ class PackageCVAT:
 
         # Output CVAT-compatible directory structure
         self.cvat_dir = self.species_dir / f"{self.species}_cvat_package"
-        self.cvat_img_dir = self.cvat_dir / "default"           # For input images
-        self.cvat_mask_dir = self.cvat_dir / "defaultannot"     # For corresponding masks
+        self.cvat_img_dir = self.cvat_dir / f"{self.species}" # For input images
+        self.cvat_mask_dir = self.cvat_dir / f"{self.species}annot" # For corresponding masks
 
         # Create directories if they don't exist
         self.cvat_img_dir.mkdir(parents=True, exist_ok=True)
         self.cvat_mask_dir.mkdir(parents=True, exist_ok=True)
 
         # Paths for annotation and color-label text files
-        self.images_annot_file_path = self.cvat_dir / "default.txt"
+        self.images_annot_file_path = self.cvat_dir / f"{self.species}.txt"
         self.colorlabel_file_path = self.cvat_dir / "label_colors.txt"
 
     def process_images_and_masks(self) -> None:
@@ -87,7 +87,7 @@ class PackageCVAT:
             image_path (Path): Path to the image file.
         """
         with open(self.images_annot_file_path, 'a') as f:
-            f.write(f"/default/{image_path.stem}.png defaultannot/{image_path.stem}.png\n")
+            f.write(f"/{self.species}/{image_path.stem}.png {self.species}annot/{image_path.stem}.png\n")
 
     def create_colorlabel_file(self, mask_3d: np.ndarray) -> None:
         """
