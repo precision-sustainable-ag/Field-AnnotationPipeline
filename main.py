@@ -39,6 +39,11 @@ def main(cfg: DictConfig) -> None:
 
     for task in tasks:
         cfg.general.task = task
+        # Skip manual inspection if the user is not authorized
+        if task != "manual_inspection" and whoami not in ["mkutuga", "nsingh27"]:
+            log.error(f"User {whoami} is not authorized to run {task}. Skipping.")
+            continue
+
         try:
             task = get_method(f"{task}.main")
             task(cfg)

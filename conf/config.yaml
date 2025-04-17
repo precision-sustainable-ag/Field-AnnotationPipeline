@@ -10,15 +10,16 @@ hydra:
 
 pipeline:
   # - find_unprocessed_batches
-  - sync_from_remote
-  - copy_to_temp
-  - build_metadata
-  - classify_mat
-  - detect_weeds
-  - unet_segment_weeds
-  - inspection
-  - copy_to_lts
-  - cleanup
+  # - sync_from_remote
+  # - copy_to_temp
+  # - build_metadata
+  # - classify_mat
+  # - detect_weeds
+  # - unet_segment_weeds
+  # - inspection
+  # - copy_to_lts
+  # - cleanup
+  - manual_inspection
 
 batch_id: AL_2023-08-17
 download_batch:

@@ -12,8 +12,8 @@ dependencies:
   - matplotlib==3.8.4
   - gputil==1.4.0
   - ExifRead==3.0.0
+  - opencv
   - pip:
-      - opencv-python==4.9.0.80
       - torch==2.5.0
       - torchvision==0.20.0
       - ultralytics==8.3.92

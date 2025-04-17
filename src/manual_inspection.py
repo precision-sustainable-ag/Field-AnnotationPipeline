@@ -1,0 +1,212 @@
+import cv2
+import hydra
+import getpass
+import logging
+import datetime
+import pandas as pd
+from pathlib import Path
+from omegaconf import DictConfig
+
+# Configure logging
+log = logging.getLogger(__name__)
+
+GITHUB_REPO_URL = "https://github.com/precision-sustainable-ag/Field-AnnotationPipeline/issues"
+
+LABEL_OPTIONS = {
+                "1": "Pass",
+                "2": "Bad Mask",
+                "3": "Incorrect Species",
+                "0": "Other",
+                "q": "Quit",
+                "b": "Back"
+            }
+
+class ManualInspection:
+    """
+    Class to manually inspect images and label them based on quality.
+    """
+    def __init__(self, cfg: DictConfig):
+        self.batch_id = cfg.batch_id
+        self.longterm_storage_dir = Path(cfg.paths.longterm_storage)
+        self.batch_dir = self.longterm_storage_dir / "field-batches" / self.batch_id
+        self.longterm_inspection_dir = self.batch_dir / "inspection"
+        self.csv_name = f"{self.batch_id}_annotation_inspection_results.csv"
+        self.csv_file = self.batch_dir / self.csv_name
+        self.images = self._load_images()
+        self.results = self._load_existing_results()
+        self.timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self.user = getpass.getuser()
+
+    def _load_images(self):
+        """Load images and return a sorted list of unlabeled ones."""
+        all_images = sorted(self.longterm_inspection_dir.glob("*.jpg"))
+        if not all_images:
+            log.warning(f"No images found in {self.longterm_inspection_dir}")
+            return []
+
+        return [img for img in all_images if img.stem not in self._get_labeled_images()]
+
+    def _get_labeled_images(self):
+        """Retrieve a set of already labeled images from the CSV file."""
+        if self.csv_file.exists():
+            df_existing = pd.read_csv(self.csv_file)
+            return set(df_existing['ImageID'].tolist())
+        return set()
+
+    def _load_existing_results(self):
+        """Load existing CSV results or return an empty list."""
+        if self.csv_file.exists():
+            log.info(f"Loading existing results from {self.csv_file}")
+            return pd.read_csv(self.csv_file).values.tolist()
+        return []
+
+    def _display_instructions(self):
+        """Prints instructions for user input."""
+        print("\n--- Image Quality Assessment ---")
+        for key, label in LABEL_OPTIONS.items():
+            if key == "0":
+                key = "0 (zero)"
+            bright_key = f"\033[1;97m{key}\033[0m"  # Makes numbers bold & bright white
+            
+            print(f"{bright_key} - {label}")
+        
+        print("\n🔄 Please wait while the X11 or X410 forwarding initializes. This may take a few seconds...\n")
+
+    def _display_image(self, img_path):
+        """Loads and displays an image, returns False if loading fails."""
+        image = cv2.imread(str(img_path))
+        if image is None:
+            log.error(f"⚠️ Error loading image: {img_path}")
+            return False
+        
+        cv2.imshow("Inspection Viewer", image)
+        return True
+
+    def _get_user_input(self):
+        """Captures user input for labeling images."""
+        while True:
+            key = cv2.waitKey(0) & 0xFF
+            key_char = chr(key)
+            if key_char in LABEL_OPTIONS:
+                return LABEL_OPTIONS[key_char]
+            print("⚠️ Invalid choice. Please press a number between 0-3 or 'q' to quit.")
+
+    def _save_results(self):
+        """Save the labeling results to a CSV file."""
+        df = pd.DataFrame(self.results, columns=['BatchID', 'ImageID', 'Selection', 'Timestamp', 'User', 'LTSLocation'])
+        df.to_csv(self.csv_file, index=False)
+
+    def _review_flagged_images(self):
+        """Checks and offers to display flagged images for issue reporting."""
+        df_final = pd.read_csv(self.csv_file)
+        flagged_images = df_final[df_final["Selection"] != "Pass"]
+
+        if flagged_images.empty:
+            return self.csv_file
+
+        print("\n⚠️ Some images have issues.")
+        print(f"📌 Please report in our GitHub repository: {GITHUB_REPO_URL}")
+        print("Mention the flagged images and describe the issues.")
+        if input("Would you like to review the flagged images for screenshots? (y/n): ").strip().lower() == 'y':
+            self._display_flagged_images(flagged_images)
+
+        print("\n📌 After taking screenshots, submit an issue on GitHub:")
+        print(f"🔗 {GITHUB_REPO_URL}\n")
+        print(f"Title the issue: {self.batch_id} segmentation quality inspection: {len(flagged_images)} flagged images\n")
+        return self.csv_file
+
+    def _display_flagged_images(self, flagged_images):
+        """Displays flagged images for screenshot capture."""
+        print("Press any key to continue to the next image.")
+        for _, row in flagged_images.iterrows():
+            img_path = self.longterm_inspection_dir / f"{row['ImageID']}.jpg"
+            if not img_path.exists():
+                img_path = self.longterm_inspection_dir / f"{row['ImageID']}.JPG"
+
+            if img_path.exists():
+                image = cv2.imread(str(img_path))
+                cv2.imshow("Flagged Image", image)
+                print(f"📸 Take a screenshot for: {row['ImageID']} ({row['Selection']})")
+                key = cv2.waitKey(0) & 0xFF
+                if key == ord('q'):  # Allow early exit
+                    break
+            else:
+                print(f"⚠️ Could not find image: {row['ImageID']}")
+
+        cv2.destroyAllWindows()
+
+    def _confirm_save_results(self):
+        """Ask the user if they want to save the final CSV. If not, delete the file."""
+        while True:
+            confirm = input("\n💾 Do you want to save the inspection results? (y/n): ").strip().lower()
+            
+            if confirm == "y":
+                self._save_results()
+                log.info(f"✅ Inspection results saved to {self.csv_file}")
+                return True  # File saved successfully
+
+            elif confirm == "n":
+                if self.csv_file.exists():
+                    if self.csv_file.name == self.csv_name:
+                        self.csv_file.unlink()  # Delete the CSV
+                        log.info(f"❌ Inspection results discarded. {self.csv_file} removed.")
+                else:
+                    log.warning("⚠️ No saved CSV file found to delete.")
+                return False  # User discarded results
+
+            else:
+                print("⚠️ Invalid input. Please enter 'y' to save or 'n' to discard.")
+
+    def review_images(self):
+        """Iterate over images and allow the user to label them."""
+        if not self.images:
+            return True
+
+        self._display_instructions()
+        cv2.namedWindow("Inspection Viewer")
+
+        index = 0
+        while index < len(self.images):
+            img_path = self.images[index]
+            if not self._display_image(img_path):
+                index += 1
+                continue
+
+            label = self._get_user_input()
+            if label == "Quit":
+                print("\n❌ Exiting image review.")
+                cv2.destroyAllWindows()
+                self._confirm_save_results()
+                return len(self.results) == len(self.images) # Return True if all images were labeled
+
+            if label == "Back":
+                if index > 0:
+                    print("\n🔙 Going back to the previous image.")
+                    self.results.pop()  # Remove last entry
+                    index -= 1  # Move back an index
+                else:
+                    print("⚠️ Already at the first image, cannot go back further.")
+                continue  # Restart loop without saving
+
+            self.results.append([self.batch_id, img_path.stem, label, self.timestamp, self.user, Path(self.longterm_storage_dir).name])
+            self._save_results()
+            index += 1
+
+        cv2.destroyAllWindows()
+        log.info("✅ Segmentation quality inspection completed.")
+        self._review_flagged_images()
+        self._confirm_save_results()
+        return len(self.results) == len(self.images)
+
+@hydra.main(version_base="1.3", config_path="../conf", config_name="config")
+def main(cfg: DictConfig) -> None:
+    """
+    Main function to start the manual inspection process.
+    """
+    # Initialize the ManualInspection class
+    log.info("Starting the manual inspection process.")
+    manual_inspection = ManualInspection(cfg)
+    if manual_inspection.review_images():
+        log.info("✅ All images have been labeled. Inspection completed.")
+    else:
+        log.info("Image inspection aborted. Not all images labeled.")
