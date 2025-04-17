@@ -37,11 +37,8 @@ class BatchChecker:
         log.info("Finding batch folders in long-term storage.")
         batches = []
         longterm_storage_path = Path(self.longterm_storage)
-        
-        # Iterate through directories in the long-term storage path
-        for batch_folder in tqdm(longterm_storage_path.iterdir(), desc="Finding batches"):
-            if batch_folder.is_dir():
-                batches.append(batch_folder.name)
+
+        batches = list(longterm_storage_path.glob("*"))
         return batches
 
     def check_folders(self) -> List[Dict[str, int]]:
@@ -57,20 +54,26 @@ class BatchChecker:
         longterm_storage_path = Path(self.longterm_storage)  # Define long-term storage path
 
         # Iterate through each batch folder and gather information about its contents
-        for batch_folder in tqdm(batches, desc="Checking folders"):
-            batch_path = longterm_storage_path / batch_folder
+        for batch_path in tqdm(batches, desc="Checking folders"):
+            
             developed_images_path = batch_path / "developed-images"
             raw_images_path = batch_path / "raws"
-            metadata_path = batch_path / "metadata"
             cutouts_path = batch_path / "cutouts"
 
             # Create a report for the current batch
+            raw_images = len(list(raw_images_path.rglob("*.ARW")))
+            developed_images = len(list(developed_images_path.glob("*.jpg")))
+            cutouts = len(list(cutouts_path.glob("*.json")))
+
+            processed = developed_images == cutouts
+            preprocessed = raw_images == developed_images
             batch_report: Dict[str, int] = {
-                "Batch": batch_folder,
-                "Raw Images": len(list(raw_images_path.rglob("*.ARW"))),
-                "Developed Images": len(list(developed_images_path.glob("*.jpg"))),
-                "Metadata": len(list(metadata_path.glob("*.json"))),
-                "Cutouts": len(list(cutouts_path.glob("*.png"))),
+                "Batch": batch_path.name,
+                "Raw Images": raw_images,
+                "Developed Images": developed_images,
+                "Cutouts": cutouts,
+                "Processed": processed,
+                "Preprocessed": preprocessed
             }
             report.append(batch_report)
     
