@@ -15,7 +15,8 @@ from torchvision import transforms
 log = logging.getLogger(__name__)
 
 # Set device (GPU if available, else CPU)
-device_id = GPUtil.getAvailable(order = 'first', limit = 1, maxLoad = 0.1, maxMemory = 0.1, includeNan=False, excludeID=[], excludeUUID=[])[0]
+device_id = GPUtil.getAvailable(order = 'first', limit = 1, maxLoad = 0.1, maxMemory = 0.1, includeNan=False, excludeID=[0], excludeUUID=[])[0]
+log.info(f"Using GPU device ID: {device_id}")
 DEVICE = torch.device(f"cuda:{device_id}" if torch.cuda.is_available() else "cpu")
 
 class UNetInference:
@@ -74,27 +75,36 @@ class UNetInference:
         pil_image = Image.fromarray(cropped_image)
         image_tensor = self.transform(pil_image).float().to(DEVICE).unsqueeze(0)
 
-        pred_mask = self.seg_model(image_tensor)
-        # Apply sigmoid to convert logits to probabilities (for binary)
-        pred_mask = torch.sigmoid(pred_mask)
-        
-        pred_mask = pred_mask.squeeze(0).cpu().detach().permute(1, 2, 0)
-        pred_mask = (pred_mask > 0.5).float().numpy()
+        try:
+            log.debug(f"Predicting mask for image of shape: {image_tensor.shape}")
+            pred_mask = self.seg_model(image_tensor)
+            # Apply sigmoid to convert logits to probabilities (for binary)
+            pred_mask = torch.sigmoid(pred_mask)
+            
+            pred_mask = pred_mask.squeeze(0).cpu().detach().permute(1, 2, 0)
+            pred_mask = (pred_mask > 0.5).float().numpy()
 
-        pred_mask = pred_mask.squeeze(-1)
+            pred_mask = pred_mask.squeeze(-1)
+        except Exception as e:
+            log.warning(f"Tensor shape: {image_tensor.shape}")
+            log.error(f"Error during prediction: {e}")
+            raise
 
         return pred_mask
     
-    def _predict_mask_in_tiles(self, image: np.ndarray, overlap_pixels=500):
-        """Process the image in tiles to avoid memory issues.
+    def _predict_mask_in_tiles(self, image: np.ndarray, overlap_pixels=250, max_tile_size=4500):
+        """Process the image in tiles to avoid memory issues, ensuring tile size does not exceed max_tile_size.
         Args:
             image (np.ndarray): The input image.
             overlap_pixels (int): The number of overlapping pixels between tiles.
+            max_tile_size (int): Maximum allowed tile size in any direction.
         Returns:
             np.ndarray: The full-size mask for the input image.
         """
         height, width = image.shape[:2]
-        step_h, step_w = np.ceil(height / 2).astype(int), np.ceil(width / 2).astype(int) # Calculate step size as rounded to next integer value
+        # Compute initial step sizes
+        step_h = min(np.ceil(height / 2).astype(int), max_tile_size - overlap_pixels)
+        step_w = min(np.ceil(width / 2).astype(int), max_tile_size - overlap_pixels)
         tile_h, tile_w = step_h + overlap_pixels, step_w + overlap_pixels # tiles size with overlap pixels for prediction
 
         pred_mask = np.zeros((height, width), dtype=np.float32)
@@ -133,12 +143,14 @@ class UNetInference:
         return bbox_dict
     
     def pred_mask(self, cropped_image: np.ndarray):
-        if cropped_image.shape[0] < 4000 and cropped_image.shape[1] < 4000:
-            log.info(f"Image size is smaller than (4000,4000). Processing image without tiling.")
-            pred_mask = self._predict_mask(cropped_image)
-        else:
-            log.info(f"Image size is larger than (4000,4000). Processing image in tiles.")
+        log.debug(f"Image shape: {cropped_image.shape[:2]}")
+        if cropped_image.shape[0] > 4000 or cropped_image.shape[1] > 4000:
+            log.debug(f"Image shape {cropped_image.shape[:2]} > (4000,4000). Processing image in tiles.")
             pred_mask = self._predict_mask_in_tiles(cropped_image) # Process in tiles
+        else:
+            log.debug(f"Image shape {cropped_image.shape[:2]} < (4000,4000). Processing image without tiling.")
+            pred_mask = self._predict_mask(cropped_image)
+        
         return pred_mask
 
     def save_image(
