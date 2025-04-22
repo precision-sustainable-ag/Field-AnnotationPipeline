@@ -21,6 +21,11 @@ To set up the environment, follow these steps:
     conda activate field-annotation-pipeline
     ```
 
+3. Update dependencies using the `environment.yaml`:
+    ```bash
+    conda env update --file environment.yaml --prune
+    ```
+
 ## Usage
 
 Once the environment is set up, you can start using the pipeline to annotate your field imagery.
