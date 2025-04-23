@@ -16,7 +16,6 @@ class PackageCVAT:
 
     This class:
     - Organizes images and corresponding binary masks
-    - Converts images from JPG to PNG
     - Converts grayscale masks to 3-channel (3D) masks
     - Creates necessary mapping and color label files for CVAT
     - Zips the final directory and removes temporary files
@@ -52,7 +51,6 @@ class PackageCVAT:
     def process_images_and_masks(self) -> None:
         """
         Processes all images and masks:
-        - Copies and renames images to PNG
         - Creates 3D masks and saves them
         - Writes annotation and label files
         - Zips the entire CVAT package directory and deletes the temp folder
@@ -60,12 +58,12 @@ class PackageCVAT:
         logging.info(f"Processing images and masks for species: {self.species}")
         for image_path in self.cropout_images:
             # Convert image to .png and copy to CVAT directory
-            new_image_name = image_path.stem + ".png"
-            new_image_path = self.cvat_img_dir / new_image_name
+            new_image_path = self.cvat_img_dir / image_path.name
             shutil.copy(str(image_path), new_image_path)
 
-            # Write line in default.txt linking image and mask
-            self.prepare_directory_structure_file(image_path)
+            # Write line in txt file linking image and mask
+            with open(self.images_annot_file_path, 'a') as f:
+                f.write(f"/{self.species}/{image_path.name} {self.species}annot/{image_path.stem}.png\n")
 
             # Convert grayscale mask to 3D and save
             mask_3d = self.create_3d_masks(image_path)
@@ -79,25 +77,15 @@ class PackageCVAT:
         shutil.rmtree(self.cvat_dir)
         logging.info(f"{self.species} CVAT package created at: {zip_file_path}")
 
-    def prepare_directory_structure_file(self, image_path: Path) -> None:
-        """
-        Appends a line in the 'default.txt' file linking image and its corresponding mask.
-
-        Args:
-            image_path (Path): Path to the image file.
-        """
-        with open(self.images_annot_file_path, 'a') as f:
-            f.write(f"/{self.species}/{image_path.stem}.png {self.species}annot/{image_path.stem}.png\n")
-
     def create_colorlabel_file(self, mask_3d: np.ndarray) -> None:
         """
         Creates 'label_colors.txt' which defines the color associated with the weed class.
-        It uses the second unique value in the mask (assuming background is first).
+        It uses the second unique value in the mask.
 
         Args:
             mask_3d (np.ndarray): 3D mask array from which color is extracted.
         """
-        mask_color_label = np.unique(mask_3d)[1]  # Use second unique value as label (after background)
+        mask_color_label = np.unique(mask_3d)[1]  # Use second unique value as label 
 
         with open(self.colorlabel_file_path, 'w') as f:
             f.write(f"{mask_color_label} {mask_color_label} {mask_color_label} weed\n")
@@ -112,10 +100,7 @@ class PackageCVAT:
         Returns:
             np.ndarray: The 3D mask that was saved.
         """
-        # Construct mask file path
         mask_path = image_path.with_name(image_path.name.replace('.jpg', '_mask.png'))
-
-        # Read grayscale mask
         mask = cv2.imread(str(mask_path), cv2.IMREAD_GRAYSCALE)
 
         # Stack the mask into 3 channels (needed by CVAT)
