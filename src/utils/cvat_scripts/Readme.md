@@ -1,31 +1,78 @@
-# CVAT Image Packaging Pipeline
 
-These two scripts select and prepare images for annotation in CVAT.
+# Image Acquisition and Packaging for CVAT
 
-## 1. Acquire Images
+This repository contains two scripts for preparing species-specific image datasets for CVAT annotation.
 
-**Script:** `acquire_images_from_lts.py`  
-Selects random `.jpg` images by species from LTS for annotation.
+---
 
-```bash
-python acquire_images_from_lts.py
-```
+## Overview
 
-## 2. Run Annotation Pipeline
+1. **`acquire_image_from_lts.py`**  
+   Randomly selects images for each species from long-term storage and copies them to a structured directory.
 
-Use the `field_annotation_pipeline` to generate cutouts and predicted masks from the selected images.
+2. **Manual Step**  
+   After running the acquire script, **manually select 5 good cutout images** for each species before proceeding.
 
-## 3. Copy Processed Files
+3. **`package_cvat.py`**  
+   Packages the selected images and their masks into a CVAT-compatible zipped dataset.
 
-Move the created species-wise directories into the appropriate folders in the LTS directory located at: /mnt/research-projects/r/raatwell/longterm_images3/field-tools/field_test_dataset
+---
 
-## 4. Package for CVAT
+## Pipeline Steps
 
-**Script:** `package_cvat.py`  
-Packages images and masks in a CVAT-compatible format.
+### 1. Acquire random images from LTS
 
-```bash
-python package_cvat.py
-```
+**Script:** `acquire_image_from_lts.py`
 
-**Output:** A ready-to-upload CVAT zip with images, 3-channel masks, and metadata.
+- **Purpose:**  
+  Selects 20 random images per species from available cutouts or developed images.
+  
+- **Usage:**  
+  ```bash
+  python acquire_image_from_lts.py
+  ```
+
+- **Output:**  
+  Images organized by species inside:
+  ```
+  /field-tools/field_test_dataset/species_dataset/{species_name}/cutouts/
+  or
+  /field-tools/field_test_dataset/species_dataset/{species_name}/developed-images/
+  ```
+
+---
+
+### 2. Manually choose best 5 cutouts
+
+- Navigate to the `cutouts` folder for each species.
+- **Manually select** the **5 best quality cutout images**.
+- Remove any extra cutouts you don't want to include.
+
+> **Note:**  
+> Only the selected 5 images and their corresponding masks will be packaged later.
+
+---
+
+### 3. Package images and masks for CVAT
+
+**Script:** `package_cvat.py`
+
+- **Purpose:**  
+  Converts selected cutout images and corresponding masks into a CVAT-compatible zipped package (image/mask mapping + color labels).
+  
+- **Usage:**  
+  ```bash
+  python package_cvat.py
+  ```
+
+- **Output:**  
+  Zipped package at:
+  ```
+  /field-tools/field_test_dataset/species_dataset/{species_name}_cvat_package.zip
+  ```
+
+Each ZIP file contains:
+- Images
+- 3-channel masks
+- Image-to-mask mapping `.txt` file
+- Color label file (`label_colors.txt`)
