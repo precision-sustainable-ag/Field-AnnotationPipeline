@@ -11,7 +11,9 @@ This repository contains two scripts for preparing species-specific image datase
    Randomly selects images for each species from long-term storage and copies them to a structured directory.
 
 2. **Manual Step**  
-   After running the acquire script, **manually select 5 good cutout images** for each species before proceeding.
+   After running the acquire script:
+   - If enough cutouts exists: **manually select 5 good cutout images and masks** for each species and then proceed to next step.
+   - If cutouts do not exists: run the segmentation pipeline to get the cutouts and then proceed to next step. 
 
 3. **`package_cvat.py`**  
    Packages the selected images and their masks into a CVAT-compatible zipped dataset.
