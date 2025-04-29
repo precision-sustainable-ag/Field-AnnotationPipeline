@@ -1,5 +1,4 @@
 import cv2
-import shutil
 from pathlib import Path
 import logging
 
@@ -26,7 +25,7 @@ class ExploreImage:
         input()
         logging.info("Starting image selection process...")
 
-        image_files = list(self.image_dir.glob("*.jpg")) + list(self.image_dir.glob("*.png")) + list(self.image_dir.glob("*.jpeg"))
+        image_files = [file for file in self.image_dir.iterdir() if file.suffix.lower() in {".jpg", ".png", ".jpeg"}]
 
         if not image_files:
             logging.warning("No image files found in the directory.")
