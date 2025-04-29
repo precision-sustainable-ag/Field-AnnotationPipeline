@@ -14,7 +14,7 @@ class ExploreImage:
         Args:
             image_dir (Path): Path to the directory containing images.
         """
-        self.dir = Path(image_dir)
+        self.image_dir = Path(image_dir)
         self.selected_images = []
 
     def select_images_with_required_traits(self):
@@ -26,7 +26,7 @@ class ExploreImage:
         input()
         logging.info("Starting image selection process...")
 
-        image_files = list(self.dir.glob("*.jpg")) + list(self.dir.glob("*.png")) + list(self.dir.glob("*.jpeg"))
+        image_files = list(self.image_dir.glob("*.jpg")) + list(self.image_dir.glob("*.png")) + list(self.image_dir.glob("*.jpeg"))
 
         if not image_files:
             logging.warning("No image files found in the directory.")
@@ -74,7 +74,7 @@ class ExploreImage:
             return
 
         # Save filenames
-        output_file = self.dir / "selected_images.txt"
+        output_file = self.image_dir / "selected_images.txt"
         with open(output_file, "w") as f:
             for img_path in self.selected_images:
                 f.write(f"{img_path.name}\n")
