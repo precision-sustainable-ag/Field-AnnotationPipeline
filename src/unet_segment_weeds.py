@@ -193,12 +193,12 @@ class UNetInference:
             log.error(f"No bounding box found for {image_path}. Skipping.")
             return 
         
-        categroy = metadata["category"]
-        if categroy is None:
-            log.error(f"No Category found for {image_path}. Skipping.")
+        category = metadata["category"]
+        if category is None:
+            log.error(f"No category found for {image_path}. Skipping.")
             return
-        
-        class_id = categroy["class_id"]
+
+        class_id = category["class_id"]
         
         # Add min/max coordinates to the bounding box
         bx = self.get_bbox_minmax(bbox)
