@@ -56,7 +56,12 @@ class PackageCVAT:
         - Zips the entire CVAT package directory and deletes the temp folder
         """
         logging.info(f"Processing images and masks for species: {self.species}")
-        for image_path in self.cropout_images:
+        image_paths = list(self.cropout_images)
+        if not image_paths:
+            logging.warning("No images found. Skipping CVAT package creation.")
+            return
+
+        for image_path in image_paths:
             # Convert image to .png and copy to CVAT directory
             new_image_path = self.cvat_img_dir / image_path.name
             shutil.copy(str(image_path), new_image_path)
