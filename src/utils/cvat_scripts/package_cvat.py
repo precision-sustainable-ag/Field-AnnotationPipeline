@@ -102,8 +102,14 @@ class PackageCVAT:
         """
         mask_path = image_path.with_name(image_path.name.replace('.jpg', '_mask.png'))
         mask = cv2.imread(str(mask_path), cv2.IMREAD_GRAYSCALE)
+        if mask is None:
+            raise FileNotFoundError(f"Mask not found: {mask_path}")
 
-        # Stack the mask into 3 channels (needed by CVAT)
+        # Ensure mask values are 0 or 255 for CamVid style
+        if mask.max() <= 1:
+            mask = (mask * 255).astype(np.uint8)
+
+        # Stack the mask into 3 channels (needed by CVAT/CamVid)
         mask_3d = np.stack((mask,) * 3, axis=-1)
 
         # Save the 3D mask
