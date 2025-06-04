@@ -63,7 +63,7 @@ class PackageCVAT:
 
             # Write line in txt file linking image and mask
             with open(self.images_annot_file_path, 'a') as f:
-                f.write(f"/{self.species}/{image_path.name} {self.species}annot/{image_path.stem}.png\n")
+                f.write(f"{self.species}/{image_path.name} {self.species}annot/{image_path.stem}.png\n")
 
             # Convert grayscale mask to 3D and save
             mask_3d = self.create_3d_masks(image_path)
