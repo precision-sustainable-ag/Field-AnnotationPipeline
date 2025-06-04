@@ -75,6 +75,6 @@ This repository contains two scripts for preparing species-specific image datase
 
 Each ZIP file contains:
 - Images
-- 3-channel masks
+- 3-channel masks (scaled to 0/255 for CamVid compatibility)
 - Image-to-mask mapping `.txt` file
 - Color label file (`label_colors.txt`)
