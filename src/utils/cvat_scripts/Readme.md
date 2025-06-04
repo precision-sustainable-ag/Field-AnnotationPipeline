@@ -77,4 +77,8 @@ Each ZIP file contains:
 - Images
 - 3-channel masks
 - Image-to-mask mapping `.txt` file
-- Color label file (`label_colors.txt`)
+- Color label file (`label_colors.txt`) with:
+  ```
+  0 0 0 background
+  255 255 255 weed
+  ```

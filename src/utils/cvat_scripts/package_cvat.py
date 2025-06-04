@@ -85,10 +85,14 @@ class PackageCVAT:
         Args:
             mask_3d (np.ndarray): 3D mask array from which color is extracted.
         """
-        mask_color_label = np.unique(mask_3d)[1]  # Use second unique value as label 
+        mask_color_label = np.unique(mask_3d)[1]  # Use second unique value as label
 
         with open(self.colorlabel_file_path, 'w') as f:
-            f.write(f"{mask_color_label} {mask_color_label} {mask_color_label} weed\n")
+            # Always include the background label first
+            f.write("0 0 0 background\n")
+            f.write(
+                f"{mask_color_label} {mask_color_label} {mask_color_label} weed\n"
+            )
 
     def create_3d_masks(self, image_path: Path) -> np.ndarray:
         """
