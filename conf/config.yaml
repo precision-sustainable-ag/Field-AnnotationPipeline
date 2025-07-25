@@ -9,6 +9,7 @@ hydra:
   output_subdir: ${hydra.run.dir}/hydra
 
 pipeline:
+  # - add-to-db
   # - find_unprocessed_batches
   # - sync_from_remote
   # - copy_to_temp
@@ -19,7 +20,7 @@ pipeline:
   # - inspection
   # - copy_to_lts
   # - cleanup
-  - manual_inspection
+  # - manual_inspection
 
 plant_type: WEEDS # one of "WEEDS", "COVERCROPS", or "CASHCROPS" 
 batch_id: AL_2023-08-17
