@@ -1,6 +1,7 @@
 # Hydra defaults and settings. Ignore these (don't change)
 defaults:
   - paths: default
+  - update_db: default
   - _self_
 
 hydra:

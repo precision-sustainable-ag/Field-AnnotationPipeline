@@ -25,6 +25,7 @@ longterm_images2: /mnt/research-projects/s/screberg/longterm_images2/
 # delete this
 inference_results_dir: ${paths.datadir}/inference_results
 
+persistent_data_table: ${paths.longterm_storage}/field-tools/persistent_data_tables/merged_blobs_tables_metadata_lts.csv
 agir_field_db_dir: ${paths.longterm_storage}/field-tools/agir_field_db
 agir_field_db: ${paths.agir_field_db_dir}/test_agir_field.db
 agir_field_db_schema: ${paths.agir_field_db_dir}/schema.sql
