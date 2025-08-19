@@ -1,12 +1,14 @@
 import sqlite3
 import json
 import logging
+import exifread
 from pathlib import Path
 from typing import List, Optional, Dict, Any, Callable
 import numpy as np
 import pandas as pd
 from omegaconf import DictConfig
 from tqdm import tqdm
+
 log = logging.getLogger(__name__)
 
 # --- Conversion helpers ---
@@ -181,7 +183,23 @@ class FieldDataImporter:
 
             elif col == "extension_lower":
                 extension = row.get('Extension', None)
-                vals.append(extension.lower() if extension else None)
+                vals.append(extension.lower())
+
+            elif col == "exif_meta":
+                stem = row.get('Stem', None)
+                batch_id = row.get('BatchID', None)
+                if stem and batch_id:
+                    developed_image_path = self.lts_dir / "field-batches" / str(batch_id) / "developed-images" / f"{stem}.jpg"
+                    if developed_image_path.exists():
+                        # extract exif data using exifread
+                        with open(developed_image_path, "rb") as f:
+                            # process_file returns a dict of tags
+                            tags = exifread.process_file(f, details=True)
+                        # Convert tags to JSON string
+                        exif_data_json_str = json.dumps({tag: str(value) for tag, value in tags.items() if tag in ["Image Make", "Image Model", "Image Software", "EXIF ExposureTime", "EXIF FNumber", "EXIF ISOSpeedRatings", "EXIF Flash", "EXIF FocalLength", "EXIF LensModel"]})
+                        vals.append(exif_data_json_str)
+                    else:
+                        vals.append(None)
 
             else:
                 vals.append(None)
