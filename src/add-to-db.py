@@ -48,6 +48,7 @@ class FieldDataImporter:
         self.csv_path = str(cfg.paths.persistent_data_table)
         self.csv_to_db_map = cfg.update_db.table_to_db_map
         self.db_columns = cfg.update_db.db_columns
+        self.exif_meta_fields = cfg.update_db.exif_meta_fields
         self.category_field_map = cfg.update_db.category_field_map
         self.conn = None
         self.cur = None
@@ -196,7 +197,7 @@ class FieldDataImporter:
                             # process_file returns a dict of tags
                             tags = exifread.process_file(f, details=True)
                         # Convert tags to JSON string
-                        exif_data_json_str = json.dumps({tag: str(value) for tag, value in tags.items() if tag in ["Image Make", "Image Model", "Image Software", "EXIF ExposureTime", "EXIF FNumber", "EXIF ISOSpeedRatings", "EXIF Flash", "EXIF FocalLength", "EXIF LensModel"]})
+                        exif_data_json_str = json.dumps({tag: str(value) for tag, value in tags.items() if tag in self.exif_meta_fields})
                         vals.append(exif_data_json_str)
                     else:
                         vals.append(None)

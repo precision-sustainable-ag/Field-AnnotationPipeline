@@ -59,6 +59,7 @@ db_columns:
   - app_species
   - batch_id
   - extension
+  - extension_lower
   - stem
   - camera_datetime
   - cloud_cover
@@ -126,3 +127,14 @@ db_columns:
   - mask_status
   - mask_reviewer
   - mask_review_datetime
+
+exif_meta_fields:
+ - Image Make
+ - Image Model
+ - Image Software
+ - EXIF ExposureTime
+ - EXIF FNumber
+ - EXIF ISOSpeedRatings
+ - EXIF Flash
+ - EXIF FocalLength
+ - EXIF LensModel
