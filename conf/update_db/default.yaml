@@ -1,0 +1,138 @@
+category_field_map:
+  class_id: class_id
+  USDA_symbol: usda_symbol
+  EPPO: eppo
+  group: taxonomic_group
+  class: taxonomic_class
+  subclass: taxonomic_subclass
+  order: taxonomic_order
+  family: taxonomic_family
+  genus: taxonomic_genus
+  species: taxonomic_species_name
+  common_name: common_name
+  authority: taxonomic_authority
+  growth_habit: growth_habit
+  duration: duration
+  multi_species_USDA_symbol: multi_species_USDA_symbol
+  link: link
+  note: category_note
+  rgb: rgb
+  alias: alias
+
+table_to_db_map:
+  BatchID: batch_id
+  Name: image_id
+  CameraInfo_DateTime: camera_datetime
+  CloudCover: cloud_cover
+  CottonVariety: cotton_variety
+  CoverCropFamily: cover_crop_family
+  CropOrFallow: crop_or_fallow
+  CropTypeSecondary: crop_type_secondary
+  FlowerFruitOrSeeds: flower_fruit_or_seeds
+  GroundCover: ground_cover
+  GroundResidue: ground_residue
+  GrowthStage: growth_stage
+  HasMatchingJpgAndRaw: has_matching_jpg_and_raw
+  Height: height
+  ImageIndex: image_index
+  ImageIDUnixDT: image_id_unixdt
+  ImageURL: image_url
+  MasterRefID: wirmaster_ref_id
+  PlantType: plant_type
+  SizeClass: size_class
+  SizeMiB: size_mib
+  Species: app_species
+  SubBatchIndex: sub_batch_index
+  Stem: stem # Unique identifier for the image
+  Extension: extension
+  UploadDateTimeUTC: upload_datetime_utc
+  UsState: us_state
+  Wircovercropsmeta_rowkey: wircovercropsmeta_rowkey
+  Wircropsmeta_rowkey: wircropsmeta_rowkey
+  Wirimagerefs_rowkey: wirimagerefs_rowkey
+  Wirmastermeta_rowkey: wirmastermeta_rowkey
+  Wirweedsmeta_rowkey: wirweedsmeta_rowkey
+
+db_columns:
+  - id
+  - alias
+  - app_species
+  - batch_id
+  - bbox_xywh
+  - camera_datetime
+  - category_note
+  - class_id
+  - cloud_cover
+  - common_name
+  - cotton_variety
+  - cover_crop_family
+  - crop_or_fallow
+  - crop_type_secondary
+  - cutout_image_path
+  - cutout_name
+  - db_insert_datetime
+  - det_pred_conf
+  - developed_image_path
+  - duration
+  - eppo
+  - exif_meta
+  - extension
+  - final_mask_issue_tag
+  - final_mask_path
+  - flower_fruit_or_seeds
+  - ground_cover
+  - ground_residue
+  - growth_habit
+  - growth_stage
+  - has_mat_pred
+  - has_mat_pred_conf
+  - has_matching_jpg_and_raw
+  - height
+  - image_id
+  - image_index
+  - image_url
+  - initial_mask_issue_tag
+  - is_preprocessed
+  - link
+  - mask_reviewer
+  - mask_status
+  - mask_timestamp
+  - multi_species_USDA_symbol
+  - plant_type
+  - processing_note
+  - raw_image_path
+  - refine_params
+  - rgb
+  - size_class
+  - size_mib
+  - stem
+  - sub_batch_index
+  - tags
+  - taxonomic_authority
+  - taxonomic_class
+  - taxonomic_family
+  - taxonomic_genus
+  - taxonomic_group
+  - taxonomic_order
+  - taxonomic_species_name
+  - taxonomic_subclass
+  - upload_datetime_utc
+  - us_state
+  - usda_symbol
+  - wircovercropsmeta_rowkey
+  - wircropsmeta_rowkey
+  - wirimagerefs_rowkey
+  - wirmaster_ref_id
+  - wirmastermeta_rowkey
+  - wirweedsmeta_rowkey
+
+exif_meta_fields:
+ - Image Make
+ - Image Model
+ - Image Software
+ - EXIF ExposureTime
+ - EXIF FNumber
+ - EXIF ISOSpeedRatings
+ - EXIF Flash
+ - EXIF FocalLength
+ - EXIF LensModel

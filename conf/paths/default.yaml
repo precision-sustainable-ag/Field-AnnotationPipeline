@@ -4,6 +4,10 @@ logdir: ${paths.workdir}/logging
 datadir: ${paths.workdir}/data
 temp_dir: ${paths.datadir}/temp
 reports: ${paths.workdir}/reports
+field_utils: ${paths.datadir}/field-utils
+
+# Batch folder paths
+batch_dir: ${paths.datadir}/temp/${batch_id}
 
 # model paths
 yolo_weed_detection_model: ${paths.datadir}/field-tools/models/weed_detection/weights/best.pt
@@ -20,3 +24,8 @@ longterm_storage: /mnt/research-projects/r/raatwell/longterm_images3/
 longterm_images2: /mnt/research-projects/s/screberg/longterm_images2/
 # delete this
 inference_results_dir: ${paths.datadir}/inference_results
+
+persistent_data_table: ${paths.longterm_storage}/field-tools/persistent_data_tables/merged_blobs_tables_metadata_lts.csv
+agir_field_db_dir: ${paths.longterm_storage}/field-tools/agir_field_db
+agir_field_db: ${paths.agir_field_db_dir}/test_agir_field.db
+agir_field_db_schema: ${paths.agir_field_db_dir}/schema.sql
