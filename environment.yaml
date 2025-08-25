@@ -13,6 +13,8 @@ dependencies:
   - gputil==1.4.0
   - ExifRead==3.0.0
   - opencv
+  - reportlab
+  - pandas
   - pip:
       - torch==2.5.0
       - torchvision==0.20.0
