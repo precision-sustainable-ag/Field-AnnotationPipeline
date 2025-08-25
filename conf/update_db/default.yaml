@@ -125,3 +125,14 @@ db_columns:
   - wirmaster_ref_id
   - wirmastermeta_rowkey
   - wirweedsmeta_rowkey
+
+exif_meta_fields:
+ - Image Make
+ - Image Model
+ - Image Software
+ - EXIF ExposureTime
+ - EXIF FNumber
+ - EXIF ISOSpeedRatings
+ - EXIF Flash
+ - EXIF FocalLength
+ - EXIF LensModel

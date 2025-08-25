@@ -1,12 +1,14 @@
 import sqlite3
 import json
 import logging
+import exifread
 from pathlib import Path
 from typing import List, Optional, Dict, Any, Callable
 import numpy as np
 import pandas as pd
 from omegaconf import DictConfig
 from tqdm import tqdm
+
 log = logging.getLogger(__name__)
 
 # --- Conversion helpers ---
@@ -46,6 +48,7 @@ class FieldDataImporter:
         self.csv_path = str(cfg.paths.persistent_data_table)
         self.csv_to_db_map = cfg.update_db.table_to_db_map
         self.db_columns = cfg.update_db.db_columns
+        self.exif_meta_fields = cfg.update_db.exif_meta_fields
         self.category_field_map = cfg.update_db.category_field_map
         self.conn = None
         self.cur = None
@@ -173,7 +176,27 @@ class FieldDataImporter:
             elif col == "db_insert_datetime":
                 # Use current UTC time for db_insert_datetime
                 vals.append(str(self.db_insert_dt))
-            
+
+            elif col == "extension_lower":
+                extension = row.get('Extension', None)
+                vals.append(extension.lower())
+
+            elif col == "exif_meta":
+                stem = row.get('Stem', None)
+                batch_id = row.get('BatchID', None)
+                if stem and batch_id:
+                    developed_image_path = self.lts_dir / "field-batches" / str(batch_id) / "developed-images" / f"{stem}.jpg"
+                    if developed_image_path.exists():
+                        # extract exif data using exifread
+                        with open(developed_image_path, "rb") as f:
+                            # process_file returns a dict of tags
+                            tags = exifread.process_file(f, details=True)
+                        # Convert tags to JSON string
+                        exif_data_json_str = json.dumps({tag: str(value) for tag, value in tags.items() if tag in self.exif_meta_fields})
+                        vals.append(exif_data_json_str)
+                    else:
+                        vals.append(None)
+
             else:
                 vals.append(None)
         
