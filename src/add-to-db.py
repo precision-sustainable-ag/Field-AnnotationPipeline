@@ -177,9 +177,6 @@ class FieldDataImporter:
                 # Use current UTC time for db_insert_datetime
                 vals.append(str(self.db_insert_dt))
 
-            elif col == "extension_lower":
-                extension = row.get('Extension', None)
-                vals.append(extension.lower())
 
             elif col == "exif_meta":
                 stem = row.get('Stem', None)
