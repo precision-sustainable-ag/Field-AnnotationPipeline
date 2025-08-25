@@ -58,9 +58,9 @@ class FieldDataImporter:
             'has_matching_jpg_and_raw': convert_bool,
             'image_index': convert_int,
             'size_mib': convert_float,
-            'flower_fruit_or_seeds': convert_int,
+            'flower_fruit_or_seeds': convert_bool,
             'height': lambda v: convert_json(parse_range(v)) or v,
-            'ground_cover': lambda v: convert_json(parse_range(v)) or v,
+            'ground_cover': lambda v: convert_json(parse_range(v)) or v
         }
 
     def connect(self):
@@ -93,25 +93,20 @@ class FieldDataImporter:
                     log.warning(f"Could not add column '{col}': {e}")
         self.conn.commit()
 
-    def import_csv(self, csv_path: Optional[str] = None):
-        df = self._load_and_clean_csv(csv_path)
-        data = []
-        for _, row in tqdm(df.iterrows(), total=len(df), desc="Processing rows"):
-            data.append(self._build_row(row))
-
-        self._validate_rows(data)
-        self._insert_data(data)
-
-    def _load_and_clean_csv(self, csv_path: Optional[str] = None) -> pd.DataFrame:
-        if csv_path:
-            self.csv_path = csv_path
-        if not self.csv_path:
-            raise ValueError("CSV path must be set before importing.")
+    def _load_and_clean_csv(self) -> pd.DataFrame:
         df = pd.read_csv(self.csv_path, low_memory=False)
+        
+        # remove the extension column if it exists
+        if 'Extension' in df.columns:
+            log.info("Removing existing 'extension' column from DataFrame.")
+            df.drop(columns=['Extension'], inplace=True)
 
-        df["CameraInfo_DateTime_Unix"] = pd.to_datetime(df["CameraInfo_DateTime"]).dt.tz_localize("UTC", nonexistent="NaT", ambiguous="NaT").astype("int64") // 10**9
-        df["ImageIDUnixDT"] = df["Stem"] + "_" + df["CameraInfo_DateTime_Unix"].astype(str) + "_" + df["Extension"]
-
+        # Create new extension column by taking the extension in Name column
+        df['Extension'] = df['Name'].apply(lambda x: Path(x).suffix if pd.notna(x) else None)
+        
+        # Only for testing. Remove this afterward
+        # df = df[(df['Extension'].str.lower() == '.jpg')].sample(10000)
+        
         return df
 
     def _build_row(self, row: pd.Series) -> tuple:
@@ -234,11 +229,20 @@ class FieldDataImporter:
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
 
+    def run(self):
+        df = self._load_and_clean_csv()
+        data = []
+        for _, row in tqdm(df.iterrows(), total=len(df), desc="Processing rows"):
+            data.append(self._build_row(row))
+
+        self._validate_rows(data)
+        self._insert_data(data)
+
 def main(cfg):
     try:
         with FieldDataImporter(cfg) as importer:
             importer.create_table()
-            importer.import_csv()
+            importer.run()
     except Exception as e:
         log.exception(f"An error occurred: {e}")
         raise
