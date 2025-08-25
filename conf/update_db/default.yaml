@@ -124,6 +124,7 @@ db_columns:
   - refined_params
   - initial_mask_issue_tag
   - final_mask_issue_tag
+  - final_mask_path
   - mask_status
   - mask_reviewer
   - mask_review_datetime
