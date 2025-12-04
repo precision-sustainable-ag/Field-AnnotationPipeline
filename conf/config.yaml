@@ -2,6 +2,7 @@
 defaults:
   - paths: default
   - update_db: default
+  - seg_model: unet
   - _self_
 
 hydra:
