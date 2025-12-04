@@ -11,6 +11,7 @@ from datetime import datetime
 from src.utils.unet import UNet
 from omegaconf import DictConfig
 from torchvision import transforms
+from src.utils.lit_segmentation import LitSegmentation
 
 log = logging.getLogger(__name__)
 
@@ -40,8 +41,7 @@ class UNetInference:
         self.trained_model_path = cfg.paths.unet_segmentation_model
         
         # Load UNet model
-        self.seg_model = UNet(in_channels=3, num_classes=1).to(DEVICE)
-        self.seg_model.load_state_dict(torch.load(self.trained_model_path, map_location=DEVICE, weights_only=True))
+        self.seg_model = LitSegmentation.load_from_checkpoint(self.trained_model_path).to(DEVICE)
         self.seg_model.eval()
 
         # Define save directory
