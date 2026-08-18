@@ -37,6 +37,17 @@ def _complete_row(row: dict) -> dict:
     return {col: row.get(col) for col in CUTOUT_COLUMNS}
 
 
+def _model_label(path: str | Path) -> str:
+    """Filename plus its 2 parent directories, e.g.
+    ".../train_unet_mitb4_v4/checkpoints/epoch=51-...ckpt" ->
+    "train_unet_mitb4_v4/checkpoints/epoch=51-...ckpt" -- a bare checkpoint
+    filename like "best.pt" alone doesn't identify which training run/model
+    variant produced it, the parent dirs do.
+    """
+    parts = Path(path).parts
+    return str(Path(*parts[-3:])) if len(parts) >= 3 else str(Path(path))
+
+
 def process_one_image(
     row: dict,
     detector: WeedDetector | None,
@@ -63,6 +74,11 @@ def process_one_image(
     """
     base_name = row["base_name"]
     batch_label = row.get("batch_label")
+    # Looked up once here (not just on a successful segment) since it only
+    # depends on file_status.species -- nothing to do with whether detection
+    # or segmentation succeeded, so it should be populated for no_detection
+    # and error rows too rather than left null just because they returned early.
+    class_id = get_class_id(species_info, row.get("species"))
     common = {
         "base_name": base_name,
         "cutout_index": 0,
@@ -71,8 +87,9 @@ def process_one_image(
         "location_code": row.get("location_code"),
         "plant_type": row.get("plant_type"),
         "species": row.get("species"),
-        "detection_model": Path(cfg["paths"]["det_weights"]).name if run_detection else None,
-        "segmentation_model": Path(cfg["paths"]["seg_weights"]).name,
+        "class_id": class_id,
+        "detection_model": _model_label(cfg["paths"]["det_weights"]) if run_detection else None,
+        "segmentation_model": _model_label(cfg["paths"]["seg_weights"]),
         "processed_at": utcnow_iso(),
     }
     lts_json_path = f"{batch_label}/cutouts/{base_name}_0.json"
@@ -171,7 +188,6 @@ def process_one_image(
                         "final_bbox_w": tx2 - tx1, "final_bbox_h": ty2 - ty1,
                     }
 
-        class_id = get_class_id(species_info, row.get("species"))
         mask_class = build_class_mask(bin_mask, class_id)
         mask_3c = np.repeat((bin_mask == 1)[:, :, None], 3, axis=2)
         cutout_bgr = np.where(mask_3c, crop_bgr, 0).astype(np.uint8)
@@ -196,7 +212,6 @@ def process_one_image(
         **detection_bbox_fields,
         **final_bbox_fields,
         "status": status,
-        "class_id": class_id,
         **lts_paths,
         "metadata_json_path": lts_json_path,
     })
