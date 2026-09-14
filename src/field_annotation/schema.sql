@@ -11,6 +11,17 @@ CREATE TABLE IF NOT EXISTS cutouts (
     location_code       TEXT,
     plant_type          TEXT,
     species             TEXT,
+    height              TEXT,
+    size_class          TEXT,
+    growth_stage        TEXT,
+    cotton_variety      TEXT,
+    crop_or_fallow      TEXT,
+    crop_type_secondary TEXT,
+    cover_crop_family   TEXT,
+    flower_fruit_or_seeds TEXT,
+    cloud_cover         TEXT,
+    ground_residue      TEXT,
+    ground_cover        TEXT,
     class_id            INTEGER,
     status              TEXT NOT NULL, -- 'detected_segmented' | 'no_detection' | 'segmented' | 'error'
                                         -- 'detected_segmented' = run_detection was true, found

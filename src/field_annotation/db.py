@@ -21,6 +21,17 @@ CUTOUT_COLUMNS = (
     "location_code",
     "plant_type",
     "species",
+    "height",
+    "size_class",
+    "growth_stage",
+    "cotton_variety",
+    "crop_or_fallow",
+    "crop_type_secondary",
+    "cover_crop_family",
+    "flower_fruit_or_seeds",
+    "cloud_cover",
+    "ground_residue",
+    "ground_cover",
     "class_id",
     "status",
     "det_pred_conf",
@@ -55,6 +66,17 @@ _COLUMN_MIGRATIONS = (
     "final_bbox_y INTEGER",
     "final_bbox_w INTEGER",
     "final_bbox_h INTEGER",
+    "height TEXT",
+    "size_class TEXT",
+    "growth_stage TEXT",
+    "cotton_variety TEXT",
+    "crop_or_fallow TEXT",
+    "crop_type_secondary TEXT",
+    "cover_crop_family TEXT",
+    "flower_fruit_or_seeds TEXT",
+    "cloud_cover TEXT",
+    "ground_residue TEXT",
+    "ground_cover TEXT",
 )
 
 
@@ -83,6 +105,9 @@ def _apply_column_migrations(conn: sqlite3.Connection) -> None:
 _NEEDS_ANNOTATION_QUERY = """
     SELECT
         fs.base_name, fs.master_ref_id, fs.location_code, fs.plant_type, fs.species,
+        fs.height, fs.size_class, fs.growth_stage, fs.cotton_variety, fs.crop_or_fallow,
+        fs.crop_type_secondary, fs.cover_crop_family, fs.flower_fruit_or_seeds,
+        fs.cloud_cover, fs.ground_residue, fs.ground_cover,
         fl.batch_label, fl.path AS jpg_path
     FROM file_status fs
     JOIN file_locations fl
@@ -96,7 +121,9 @@ _NEEDS_ANNOTATION_QUERY = """
       AND c.id IS NULL
       {batch_filter}
       {plant_type_filter}
-    ORDER BY fl.batch_label, fs.base_name
+      AND fs.species like '%crimson%'
+      AND fs.flower_fruit_or_seeds like 'True'
+    ORDER BY RANDOM()
     {limit_clause}
 """
 
