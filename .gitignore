@@ -1,5 +1,6 @@
 .DS_Store
 **/__pycache__
+*.pyc
 .ipynb_checkpoints
 notebooks
 authorized_keys.yaml
@@ -7,3 +8,4 @@ logging
 reports
 .github
 data_cvat
+.venv

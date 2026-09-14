@@ -1,49 +1,73 @@
-# Hydra defaults and settings. Ignore these (don't change)
-defaults:
-  - paths: default
-  - update_db: default
-  - _self_
+database:
+  path: /mnt/research-projects/r/raatwell/longterm_images3/field-db/field_exploration.db
 
-hydra:
-  run:
-    dir: ${paths.logdir}/${job.job_now}
-  output_subdir: ${hydra.run.dir}/hydra
+# When false, `run` writes cutouts locally only (paths.local_temp_dir/<batch_label>/cutouts/)
+# for review and leaves the DB/LTS untouched. Set to true once you're happy with
+# the results to have `run` copy cutouts to LTS and record them in the DB.
+save_to_lts: true
 
-pipeline:
-  # - add-to-db
-  # - find_unprocessed_batches
-  # - sync_from_remote
-  # - copy_to_temp
-  # - build_metadata
-  # - classify_mat
-  # - detect_weeds
-  # - unet_segment_weeds
-  # - inspection
-  # - copy_to_lts
-  # - cleanup
-  # - manual_inspection
+# Restrict to a single file_status.plant_type, e.g. WEEDS, CASHCROPS, or
+# COVERCROPS. null means no filter (process every plant_type). --plant-type
+# on the CLI overrides this for a one-off run.
+plant_type_filter: WEEDS
 
-plant_type: WEEDS # one of "WEEDS", "COVERCROPS", or "CASHCROPS" 
-batch_id: AL_2023-08-17
-download_batch:
-  use_multithreading: True
-  download_limit: 2
+# Shared by detection (YOLO) and segmentation (SMP) -- overridden by --device;
+# falls back to cpu if cuda is unavailable.
+device: cuda
 
-segment_weeds:
-  multiprocess: False
+paths:
+  local_temp_dir: ./data/temp
+  # Each run/list-pending invocation writes a fresh timestamped log file here
+  # (in addition to the console), so a long/unattended run can be checked
+  # afterward. Set to null/omit to disable file logging (console only).
+  log_dir: ./logging
+  species_info: ./data/field-utils/species_info.json
+  det_weights: ./data/models/detect_train_2026-08-16_20_44_02/weights/best.pt
+  seg_weights: ./data/models/train_unet_mitb4_v4/checkpoints/epoch=51-step=3484-val_loss=0.00.ckpt
 
-inspection:
-  num_random_images_to_inspect: 50
+detection:
+  # When false, skip YOLO entirely and segment the whole frame instead -- no
+  # detection model gets loaded, and padding below is inapplicable (nothing
+  # to pad). Produces status "segmented" instead of "detected"/"no_detection".
+  enabled: true
+  conf_threshold: 0.50
+  padding:
+    enabled: true # add padding to the detected ROI before segmentation (to ensure full plant is captured)
+    pad_px: 200 # pixels to pad on each side of the detected bounding box
 
-general:
-  task: # Leave empty as placeholder
+segmentation:
+  model:
+    arch: Unet
+    name: unet # informational only, not read -- the real encoder id is `encoder` below
+    encoder: mit_b4
+    encoder_weights: imagenet
+    in_channels: 3
+    classes: 1
+    activation: null # informational only, not read
+    encoder_freeze: false
+  threshold: 0.5
+  pad_to_divisor: 32
+  
+  tile:
+    max_untiled_side: 3000 # crops larger than this on either side get tiled
+    tile_size: 1024
+    overlap: 256
+    blend_method: hann # hann | gaussian | max
+  clean_disconnected_mask:
+    enable: true
+    min_area_px: 500 # despite the name, this is the max pixel-distance a disconnected
+                      # blob can be from the largest blob to be kept, not a minimum area
+  # After segmentation (+ mask cleanup), crop/mask/cutout are re-cropped down
+  # to the tight bounding box of the segmented foreground, replacing the
+  # padded/full-frame region. Set false to keep the padded/full-frame crop
+  # as-is (background zeroed by the mask, but not re-cropped to it).
+  tighten_to_mask: true
 
-pipeline_keys: ${paths.workdir}/keys/authorized_keys.yaml
-
-job:
-  job_now_date: &nowdir ${now:%Y-%m-%d}
-  job_now_time: ${now:%H_%M_%S}
-  job_now: ${job.job_now_date}/${job.job_now_time} 
-  jobdir: ${paths.datadir}/${job.job_now}
-
-metadata_version: 1.0
+batching:
+  images_per_copy_chunk: 100
+  # Deletes each chunk's staged full-size developed-images (the LTS source
+  # JPGs copied into local_temp_dir) once they've been processed, regardless
+  # of save_to_lts -- the crop/mask/cutout outputs already carry the relevant
+  # image content, so the full-size originals aren't needed locally after.
+  # Set false to keep them around (e.g. to debug against the source image).
+  cleanup_staged_images: true

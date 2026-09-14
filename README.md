@@ -1,84 +1,93 @@
 # Field-AnnotationPipeline
 
-This repository automates the creation of semantic labels and bounding boxes for field imagery within the broader Ag Image Repository, focusing on real-world agricultural conditions essential for training deep learning models.
+Detection + segmentation annotation pipeline for field imagery.
 
-## Introduction
+Scans `field_exploration.db` (maintained by [Field-DataExploration](https://github.com/precision-sustainable-ag/Field-DataExploration))
+for developed JPGs that haven't been annotated yet, stages them from long-term
+storage (LTS) batch by batch, runs weed detection + segmentation (model code and
+checkpoints from [Field-SegmentationTraining](https://github.com/precision-sustainable-ag/Field-SegmentationTraining))
+to produce cutouts + metadata, records the results in the DB, and copies the
+cutout files back to LTS.
 
-The `Field-AnnotationPipeline` is a specialized image processing pipeline designed exclusively for handling field imagery within the Ag Image Repository. This pipeline automates the generation of semantic labels and bounding box annotations for various agricultural environments, including weeds, crops, and cover crops. By leveraging extensive environmental metadata, the pipeline enhances the accuracy of annotations, providing real-world conditions crucial for effectively training deep learning models.
+```
+scan DB for images needing annotation
+  -> copy developed JPGs from LTS to local temp, batch by batch
+  -> detect (YOLO) + segment (SMP UNet) -> cutout + mask + metadata
+  -> upsert results into the DB (`cutouts` table)
+  -> copy cutouts + metadata back to LTS
+```
 
-## Installation
+## Install
 
-To set up the environment, follow these steps:
+```bash
+bash setup.sh
+```
 
-1. Clone the repository:
-    ```bash
-    git clone https://github.com/precision-sustainable-ag/Field-AnnotationPipeline.git
-    ```
+Creates `.venv` (Python 3.12 by default; override with `PYTHON_VERSION=3.11
+bash setup.sh`) and installs PyTorch/torchvision from the CUDA 12.6 wheel
+index pinned in `pyproject.toml` (`[tool.uv.sources]` -> `pytorch-cu126`).
+Re-run any time to rebuild the environment from scratch. If your host's GPU
+driver needs a different CUDA version, update that index in
+`pyproject.toml`.
 
-2. Install dependencies using the provided `environment.yaml`:
-    ```bash
-    conda env create -f environment.yaml
-    conda activate field-annotation-pipeline
-    ```
+If the environment already exists and you just changed a dependency, `uv
+sync` alone is enough.
 
-3. Update dependencies using the `environment.yaml`:
-    ```bash
-    conda env update --file environment.yaml --prune
-    ```
+## Configure
 
-## Usage
+Edit [conf/config.yaml](conf/config.yaml). Top-level: `database.path`, shared
+`device`, `paths` (local temp dir, log dir, species info, and the two model
+checkpoint paths -- `det_weights`, `seg_weights`), `batching`. Model and
+inference knobs are grouped by stage:
+- `detection`: `enabled` (false = skip YOLO, segment the full frame instead),
+  `conf_threshold`, `padding` (pad the detected ROI before segmenting)
+- `segmentation`: `model` (architecture -- `arch`/`encoder`/...),
+  `threshold`, `pad_to_divisor`, `tile` (tiling for large crops),
+  `clean_disconnected_mask` (drop mask speckles), `tighten_to_mask` (re-crop
+  to the segmented foreground)
 
-Once the environment is set up, you can start using the pipeline to annotate your field imagery.
+## Run
 
-5. Once the environment is created, activate it with:
-   ```bash
-   conda activate <env_name>
-   ```
-   Replace `<env_name>` with the name of the environment specified in the `environment.yaml` file.
+`save_to_lts` in `conf/config.yaml` controls whether `run` commits its
+results. With `save_to_lts: false` (the default), it writes cutouts locally
+for review and leaves the DB/LTS untouched; with `save_to_lts: true`, it also
+copies cutouts to LTS and records them in the DB.
 
+```bash
+# see what's pending
+uv run field-annotation list-pending
 
-## Find Unprocessed Batches
+# preview what would be processed, no inference run yet
+uv run field-annotation run --batch-label AL_2023-05-11 --dry-run
 
-`find_unprocessed_batches` script assess the status of batches stored in long-term storage. It checks each batch for the presence of raw images, developed images, metadata, and cutouts, generating a table (known as "report") that provides insight into the completeness of each batch. The script saves this report as a CSV file, making it easy to review and analyze the data.
+# run inference (save_to_lts: false in config) -- writes cutouts locally only
+uv run field-annotation run --batch-label AL_2023-05-11
+# -> review data/temp/AL_2023-05-11/cutouts/*.jpg / _mask.png / .png / .json
 
-- **Content Verification**: Checks each batch for specific subdirectories (e.g., `raws`, `developed-images`, `metadata`, `cutouts`) and counts the files in each, ensuring that all necessary data is present.
-- **Automated Reporting**: Generates a timestamped report summarizing the contents of each batch, which is saved as a CSV file.
+# happy with the results? set save_to_lts: true in conf/config.yaml, then:
+uv run field-annotation run --batch-label AL_2023-05-11
+# (this re-runs inference -- reviewed local outputs aren't reused)
 
-### Configuration
+# process everything pending, saving as it goes
+uv run field-annotation run
+```
 
-The script requires a configuration file (`conf/config.yaml`) that specifies the paths for long-term storage and the report directory. Key configuration parameters include:
+`run` accepts `--batch-label`, `--plant-type`, `--limit`, `--device {cuda,cpu}`,
+and `--dry-run`.
 
-- `cfg.data.longterm_storage`: Path to the directory where the image batches are stored long-term.
-- `cfg.reports`: Path to the directory where the generated CSV reports will be saved.
+## Idempotency
 
+Any `base_name` already recorded in `cutouts` (any status: `detected_segmented`,
+`no_detection`, `segmented`, `error`) is skipped on future runs. To force a
+specific image or batch to be reprocessed, delete its row(s) first:
 
-### Output
+```sql
+DELETE FROM cutouts WHERE base_name = 'ALB001';
+DELETE FROM cutouts WHERE batch_label = 'AL_2023-05-11';
+```
 
-- **CSV Report**: The script generates a timestamped CSV report in the specified `reports` directory. The report includes the following columns for each batch:
-  - `Batch`: The name of the batch folder.
-  - `Raw Images`: The count of raw image files (e.g., `.ARW` files).
-  - `Developed Images`: The count of developed image files (e.g., `.jpg` files).
-  - `Metadata`: The count of metadata files (e.g., `.json` files).
-  - `Cutouts`: The count of cutout image files (e.g., `.png` files).
+## Test
 
-
-## Download Batches
-
-The `BatchDownloader` script is a component of the larger Field image annotation processing pipeline. This script automates the process of identifying and downloading batches of images that meet specific criteria from a long-term storage location to a temporary directory for further processing. The script ensures that only complete and necessary batches are downloaded, and it includes configurable options to manage the download process.
-
-- **Batch Filtering:** Filters image batches based on specified criteria, such as having zero cutouts, zero metadata, and an equal number of raw and developed images.
-- **Integrity Check:** Before downloading, checks whether the batch already exists in the temporary storage. If it does, the script verifies that all expected images are present. If any images are missing, the script removes the batch folder and re-downloads the entire batch.
-- **Download Limiting:** Limits the number of batches downloaded in a single run, which is configurable through the pipeline's [config file](./conf/config.yaml). Takes into account batches that are already present in the temporary directory.
-- **Logging:** The script logs all major actions and checks, including the number of images present in each batch versus the expected count.
-- **Multithreading:** Multithreaded downloading of images within each batch. The number of threads is adjusted based on the system's available CPU cores.
-
-### Configuration
-
-The script relies on a configuration file (`conf/config.yaml`) for its operation. Key configuration parameters include:
-
-- `data.longterm_storage`: Path to the directory where the image batches are stored long-term.
-- `data.temp_dir`: Path to the temporary directory where batches are downloaded for processing.
-- `download_batch.download_limit`: The maximum number of batches to download in a single run, includes batches that have already been downloaded.
-- `download_batch.use_multithreading`: Enables or disables multithreading for image downloading within a batch.
-
-TODO: add outputs for this script
+```bash
+uv run pytest
+```
