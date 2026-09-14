@@ -5,6 +5,7 @@ import logging
 from collections import Counter
 from pathlib import Path
 
+import GPUtil
 import torch
 
 from field_annotation.config import load_config
@@ -113,10 +114,25 @@ def cmd_run(cfg: dict, args: argparse.Namespace) -> None:
 
 
 def _resolve_device(requested: str) -> str:
-    if requested == "cuda" and not torch.cuda.is_available():
+    if requested.startswith("cuda") and not torch.cuda.is_available():
         log.warning("cuda requested but not available, falling back to cpu")
         return "cpu"
+    if requested == "cuda":
+        return _pick_best_gpu()
     return requested
+
+
+def _pick_best_gpu() -> str:
+    """Auto-select the least-busy GPU when `device: cuda` doesn't pin an index."""
+    gpus = GPUtil.getGPUs()
+    if not gpus:
+        return "cuda"
+    best = min(gpus, key=lambda g: (g.memoryUtil, g.load))
+    log.info(
+        "Auto-selected GPU %d (%s): %.0f/%.0f MiB used, %.0f%% load",
+        best.id, best.name, best.memoryUsed, best.memoryTotal, best.load * 100,
+    )
+    return f"cuda:{best.id}"
 
 
 def build_parser() -> argparse.ArgumentParser:
