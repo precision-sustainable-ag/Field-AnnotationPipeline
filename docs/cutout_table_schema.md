@@ -1,8 +1,9 @@
 # `cutouts` Table Schema
 
-Owned by this pipeline inside the shared `field_exploration.db` SQLite database
-(other tables such as `file_status`, `file_locations`, `samples`, `batches` are
-owned by Field-DataExploration). Defined in
+Owned by this pipeline inside the shared `field_exploration.db` SQLite database.
+The database also holds several tables owned by Field-DataExploration
+(`samples`, `batches`, `images`, `file_status`, `file_locations`, and others) —
+see [`docs/db_overview.md`](db_overview.md) for the full list. Defined in
 [`src/field_annotation/schema.sql`](../src/field_annotation/schema.sql).
 
 One row per cutout produced from a source image (`base_name` +
@@ -31,6 +32,17 @@ One row per cutout produced from a source image (`base_name` +
 | `detection_model` | TEXT | |
 | `segmentation_model` | TEXT | |
 | `processed_at` | TEXT | Not null |
+| `height` | TEXT | Plant height bucket, copied from the sample record. Added after the table's initial creation (appears after `processed_at` in `.schema` — a later `ALTER TABLE ADD COLUMN`) |
+| `size_class` | TEXT | Plant size class, copied from the sample record. Added later, same as above |
+| `growth_stage` | TEXT | Copied from the sample record. Added later |
+| `cotton_variety` | TEXT | Copied from the sample record. Added later |
+| `crop_or_fallow` | TEXT | Copied from the sample record. Added later |
+| `crop_type_secondary` | TEXT | Copied from the sample record. Added later |
+| `cover_crop_family` | TEXT | Copied from the sample record. Added later |
+| `flower_fruit_or_seeds` | TEXT | Copied from the sample record. Added later |
+| `cloud_cover` | TEXT | Copied from the sample record. Added later |
+| `ground_residue` | TEXT | Copied from the sample record. Added later |
+| `ground_cover` | TEXT | Copied from the sample record. Added later |
 
 **Status values**
 
