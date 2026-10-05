@@ -121,8 +121,6 @@ _NEEDS_ANNOTATION_QUERY = """
       AND c.id IS NULL
       {batch_filter}
       {plant_type_filter}
-      AND fs.species like '%crimson%'
-      AND fs.flower_fruit_or_seeds like 'True'
     ORDER BY RANDOM()
     {limit_clause}
 """
