@@ -15,20 +15,18 @@ yet?" with a single `WHERE has_cutout = 0`.
 Snapshot (October 2026): 90,608 developed JPGs on NFS; 61,647 have cutouts;
 28,961 don't.
 
-## Proposed name
+## Name
 
 `developed_images`. It matches the `developed-images/` folder the JPGs live in,
 and it doesn't clash with the existing `images` table, which tracks raw and
-preview files in blob storage.
-
-Alternative considered: `annotation_queue`, if the table should hold only the
-images still waiting for cutouts (see Open questions).
+preview files in blob storage. A pending-only `annotation_queue` was
+considered; see [Decisions](#decisions).
 
 ## Schema
 
 Owned by Field-AnnotationPipeline, like `cutouts`.
 
-| Column | Type | Source | NULL | Notes |
+| Column | Type | Source | Can be NULL? | Notes |
 |---|---|---|---|---|
 | **Image identity** | | | | |
 | `base_name` | TEXT | `file_status.base_name` | `NOT NULL`, primary key | Unique: no `base_name` has more than one developed JPG. |
@@ -184,9 +182,19 @@ How the joins behave:
 
 As a new CLI command (for example `field-annotation refresh-developed-images`),
 run after Field-DataExploration refreshes `file_locations` / `file_status`,
-and again after an annotation run so `has_cutout` stays current. Once the table
-exists, `_NEEDS_ANNOTATION_QUERY` can become a simple
-`SELECT ... FROM developed_images WHERE has_cutout = 0`.
+and again after each annotation run so `has_cutout` stays current.
+
+Once the table exists, `_NEEDS_ANNOTATION_QUERY` can read from it directly:
+
+```sql
+SELECT ... FROM developed_images
+WHERE has_cutout = 0
+  {batch_filter}
+  {plant_type_filter}
+```
+
+The existing `--batch-label` and `--plant-type` options keep working as
+filters. Nothing species-specific is hard-coded (see Decisions).
 
 ### Checks after a rebuild
 
@@ -196,18 +204,21 @@ exists, `_NEEDS_ANNOTATION_QUERY` can become a simple
 - Rows with `jpg_size_bytes = 0` are logged: `file_locations` contains some
   zero-byte files, and they can't be annotated.
 
-## Open questions
+## Decisions
 
-1. **All developed images or only pending ones?** This design keeps every
-   developed JPG and flags `has_cutout`. A pending-only `annotation_queue`
+1. **Include every developed image.** The table has one row per developed
+   (color-corrected) JPG on NFS, whether or not it has a cutout yet, and
+   `has_cutout` marks which are done. A pending-only table (`annotation_queue`)
    would lose rows as cutouts are made and couldn't answer "what's been done."
-2. **Table or view?** Every column already exists in other tables, so a SQL
-   view would always be current and need no rebuild. A table is faster to
-   query and gives a stable snapshot, but it can go stale between rebuilds.
-3. **Which `images` row to link?** This design links the raw (`ARW`), since the
-   developed JPG is made from it. The camera preview JPG (`extension = 'jpg'`)
-   could be added as `preview_image_id` if needed.
-4. **The crimson clover filter.** `_NEEDS_ANNOTATION_QUERY` currently includes
-   `fs.species like '%crimson%'` and `fs.flower_fruit_or_seeds like 'True'`. If
-   that query moves to this table, those filters should become CLI options
-   instead of being hard-coded.
+2. **A table, not a view.** It's rebuilt by the refresh command above. That
+   gives a stable snapshot that's fast to query. The cost is that it can be out
+   of date between rebuilds, which is why it's refreshed after every scan and
+   annotation run.
+3. **Link the raw image.** The `raw_*` columns come from the `images` row for
+   the raw (`extension = 'arw'`), which is the file the developed JPG is made
+   from. The camera preview JPG in blob storage isn't linked.
+4. **No hard-coded species filters.** `_NEEDS_ANNOTATION_QUERY` had
+   `fs.species like '%crimson%'` and `fs.flower_fruit_or_seeds like 'True'`
+   hard-coded, which limited annotation to flowering crimson clover. Those
+   filters are removed. To narrow a run, use the existing `--batch-label` /
+   `--plant-type` options.
