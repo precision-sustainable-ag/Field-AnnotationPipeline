@@ -126,6 +126,49 @@ _NEEDS_ANNOTATION_QUERY = """
 """
 
 
+# Fills developed_images: one row per developed JPG on NFS, joined to its
+# file_status row (phenotype), its raw `images` row (identity) and its cutout,
+# if any. Run right after `DELETE FROM developed_images` in the same
+# transaction -- see refresh_developed_images and docs/developed_images_design.md.
+# jpg_path is stored relative to the LTS field-batches/ root, like the path
+# columns in cutouts.
+_REFRESH_DEVELOPED_IMAGES_SQL = """
+    INSERT INTO developed_images (
+        base_name, master_ref_id, batch_id, batch_label, location_code, sub_batch_index,
+        raw_image_id, raw_blob_name, raw_image_url, exif_datetime,
+        jpg_path, jpg_size_bytes, jpg_mtime_utc,
+        plant_type, species, height, size_class, growth_stage, cotton_variety,
+        crop_or_fallow, crop_type_secondary, cover_crop_family, flower_fruit_or_seeds,
+        cloud_cover, ground_residue, ground_cover,
+        has_cutout, refreshed_at
+    )
+    SELECT
+        fs.base_name, fs.master_ref_id, fs.batch_id, fl.batch_label, fs.location_code, fs.sub_batch_index,
+        i.id, i.blob_name, i.image_url, i.exif_datetime,
+        CASE
+            WHEN instr(fl.path, '/field-batches/') > 0
+            THEN substr(fl.path, instr(fl.path, '/field-batches/') + length('/field-batches/'))
+            ELSE fl.path
+        END,
+        fl.size_bytes, fl.mtime_utc,
+        fs.plant_type, fs.species, fs.height, fs.size_class, fs.growth_stage, fs.cotton_variety,
+        fs.crop_or_fallow, fs.crop_type_secondary, fs.cover_crop_family, fs.flower_fruit_or_seeds,
+        fs.cloud_cover, fs.ground_residue, fs.ground_cover,
+        CASE WHEN c.id IS NULL THEN 0 ELSE 1 END,
+        strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+    FROM file_status fs
+    JOIN file_locations fl
+      ON fl.base_name = fs.base_name
+     AND fl.artifact_kind = 'processed_jpg'
+     AND fl.storage_location = 'nfs'
+    LEFT JOIN temp.raw_images i
+      ON i.base_name = fs.base_name
+    LEFT JOIN cutouts c
+      ON c.base_name = fs.base_name
+     AND c.cutout_index = 0
+    WHERE fs.processed_jpg_in_nfs = 1
+"""
+
 class CutoutsDb:
     """Access layer for the `cutouts` table this pipeline owns inside the
     shared field_exploration.db (maintained otherwise by Field-DataExploration).
@@ -199,3 +242,38 @@ class CutoutsDb:
             """,
             values,
         )
+    
+    
+    def refresh_developed_images(self, conn: sqlite3.Connection) -> dict[str, int]:
+        """Rebuild developed_images from scratch. The DELETE and INSERT run in
+        one transaction (`with conn:` commits at the end, or rolls back if
+        anything fails), so readers see either the old table or the new one,
+        never a half-written one. Returns row counts for a quick sanity check.
+        """
+        # `images` has no index on base_name (and isn't ours to add one to), so
+        # joining it directly scans all ~245k rows for every developed JPG.
+        # Copy just the raw rows into an indexed TEMP table first -- it lives
+        # only in this connection and never touches the shared DB's schema.
+        conn.executescript(
+            """
+            DROP TABLE IF EXISTS temp.raw_images;
+            CREATE TEMP TABLE raw_images AS
+                SELECT id, base_name, blob_name, image_url, exif_datetime
+                FROM images
+                WHERE extension = 'arw';
+            CREATE INDEX temp.idx_raw_images_base_name ON raw_images(base_name);
+            """
+        )
+        with conn:
+            conn.execute("DELETE FROM developed_images")
+            conn.execute(_REFRESH_DEVELOPED_IMAGES_SQL)
+        row = conn.execute(
+            """
+            SELECT
+                COUNT(*) AS total,
+                COALESCE(SUM(has_cutout = 0), 0) AS pending,
+                COALESCE(SUM(jpg_size_bytes = 0), 0) AS zero_byte
+            FROM developed_images
+            """
+        ).fetchone()
+        return {"total": row["total"], "pending": row["pending"], "zero_byte": row["zero_byte"]}
