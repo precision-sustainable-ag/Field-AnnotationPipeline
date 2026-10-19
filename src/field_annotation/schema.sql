@@ -57,3 +57,44 @@ CREATE TABLE IF NOT EXISTS cutouts (
 CREATE INDEX IF NOT EXISTS idx_cutouts_base_name   ON cutouts(base_name);
 CREATE INDEX IF NOT EXISTS idx_cutouts_batch_label ON cutouts(batch_label);
 CREATE INDEX IF NOT EXISTS idx_cutouts_status      ON cutouts(status);
+
+
+-- One row per developed (color-corrected) JPG on NFS, with the image's
+-- identity, phenotype and path in one place. Owned by this pipeline, like
+-- `cutouts`, and rebuilt in full by `field-annotation refresh-developed-images`
+-- (CutoutsDb.refresh_developed_images). See docs/developed_images_design.md.
+CREATE TABLE IF NOT EXISTS developed_images (
+    base_name             TEXT PRIMARY KEY,
+    master_ref_id         TEXT,
+    batch_id              INTEGER,
+    batch_label           TEXT NOT NULL,
+    location_code         TEXT,
+    sub_batch_index       TEXT,
+    raw_image_id          INTEGER,
+    raw_blob_name         TEXT,
+    raw_image_url         TEXT,
+    exif_datetime         TEXT,
+    jpg_path              TEXT NOT NULL,
+    jpg_size_bytes        INTEGER NOT NULL,
+    jpg_mtime_utc         TEXT NOT NULL,
+    plant_type            TEXT,
+    species               TEXT,
+    height                TEXT,
+    size_class            TEXT,
+    growth_stage          TEXT,
+    cotton_variety        TEXT,
+    crop_or_fallow        TEXT,
+    crop_type_secondary   TEXT,
+    cover_crop_family     TEXT,
+    flower_fruit_or_seeds TEXT,
+    cloud_cover           TEXT,
+    ground_residue        TEXT,
+    ground_cover          TEXT,
+    has_cutout            INTEGER NOT NULL, -- 1 if a cutouts row exists (cutout_index = 0), else 0
+    refreshed_at          TEXT NOT NULL     -- ISO 8601 UTC time of the last rebuild
+);
+
+CREATE INDEX IF NOT EXISTS idx_developed_images_batch_label   ON developed_images(batch_label);
+CREATE INDEX IF NOT EXISTS idx_developed_images_has_cutout    ON developed_images(has_cutout);
+CREATE INDEX IF NOT EXISTS idx_developed_images_species       ON developed_images(species);
+CREATE INDEX IF NOT EXISTS idx_developed_images_master_ref_id ON developed_images(master_ref_id);

@@ -156,3 +156,89 @@ def test_batch_summary_needing_annotation_filters_by_plant_type(db_path):
     conn = db.connect()
     summary = db.batch_summary_needing_annotation(conn, plant_type="CASHCROPS")
     assert summary == [("MD_2024-06-25", 1)]
+
+
+
+@pytest.fixture
+def developed_db_path(db_path):
+    """db_path plus the extra columns and the `images` table that
+    refresh_developed_images reads. MDB001's developed JPG is a zero-byte file,
+    and only ALB001 has a raw (and a preview) in `images`."""
+    conn = sqlite3.connect(db_path)
+    conn.executescript(
+        """
+        ALTER TABLE file_status ADD COLUMN batch_id INTEGER;
+        ALTER TABLE file_status ADD COLUMN sub_batch_index TEXT;
+        ALTER TABLE file_locations ADD COLUMN size_bytes INTEGER;
+        ALTER TABLE file_locations ADD COLUMN mtime_utc TEXT;
+        UPDATE file_locations
+           SET path = '/mnt/lts/field-batches/' || batch_label || '/developed-images/' || base_name || '.jpg',
+               size_bytes = 1000,
+               mtime_utc = '2026-05-11 05:01:46'
+         WHERE artifact_kind = 'processed_jpg';
+        UPDATE file_locations SET size_bytes = 0 WHERE base_name = 'MDB001';
+        CREATE TABLE images (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            blob_name TEXT,
+            base_name TEXT,
+            extension TEXT,
+            image_url TEXT,
+            exif_datetime TEXT
+        );
+        INSERT INTO images (blob_name, base_name, extension, image_url, exif_datetime) VALUES
+            ('ALB001.ARW', 'ALB001', 'arw', 'https://example.blob/ALB001.ARW', '2024-08-19 10:00:00'),
+            ('ALB001.JPG', 'ALB001', 'jpg', 'https://example.blob/ALB001.JPG', '2024-08-19 10:00:00');
+        """
+    )
+    conn.commit()
+    conn.close()
+    return db_path
+
+
+def test_refresh_developed_images_one_row_per_developed_jpg(developed_db_path):
+    db = CutoutsDb(developed_db_path)
+    conn = db.connect()
+    counts = db.refresh_developed_images(conn)
+
+    rows = {row["base_name"]: row for row in conn.execute("SELECT * FROM developed_images")}
+    # ALB003 has no developed JPG yet (processed_jpg_in_nfs = 0), so it's left out.
+    assert set(rows) == {"ALB001", "ALB002", "MDB001"}
+    assert counts == {"total": 3, "pending": 3, "zero_byte": 1}
+    assert rows["ALB001"]["jpg_path"] == "AL_2024-08-19/developed-images/ALB001.jpg"
+    assert rows["ALB001"]["species"] == "Palmer amaranth"
+
+
+def test_refresh_developed_images_links_raw_image_only(developed_db_path):
+    db = CutoutsDb(developed_db_path)
+    conn = db.connect()
+    db.refresh_developed_images(conn)
+
+    rows = {row["base_name"]: row for row in conn.execute("SELECT * FROM developed_images")}
+    # Linked to the raw, not the preview JPG -- and still one row, not two.
+    assert rows["ALB001"]["raw_blob_name"] == "ALB001.ARW"
+    # No raw in `images` -> the image still gets a row, with raw_* left NULL.
+    assert rows["ALB002"]["raw_image_id"] is None
+
+
+def test_refresh_developed_images_flags_cutouts_and_is_repeatable(developed_db_path):
+    db = CutoutsDb(developed_db_path)
+    conn = db.connect()
+    db.upsert_cutout(
+        conn,
+        {
+            "base_name": "ALB001",
+            "cutout_index": 0,
+            "batch_label": "AL_2024-08-19",
+            "status": "detected_segmented",
+            "processed_at": "2026-08-17T00:00:00.000000Z",
+        },
+    )
+    conn.commit()
+
+    db.refresh_developed_images(conn)
+    counts = db.refresh_developed_images(conn)  # a second rebuild must not duplicate rows
+
+    flags = {row["base_name"]: row["has_cutout"] for row in conn.execute("SELECT * FROM developed_images")}
+    assert flags == {"ALB001": 1, "ALB002": 0, "MDB001": 0}
+    assert counts["total"] == 3
+    assert counts["pending"] == 2

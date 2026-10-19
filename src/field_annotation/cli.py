@@ -31,6 +31,8 @@ def main() -> None:
         cmd_run(cfg, args)
     elif args.command == "list-pending":
         cmd_list_pending(cfg, args)
+    elif args.command == "refresh-developed-images":
+        cmd_refresh_developed_images(cfg, args)
     else:
         parser.error(f"Unknown command: {args.command}")
 
@@ -49,6 +51,12 @@ def cmd_list_pending(cfg: dict, args: argparse.Namespace) -> None:
         total += count
     print(f"\n{len(rows)} batches, {total} images pending.")
 
+def cmd_refresh_developed_images(cfg: dict, args: argparse.Namespace) -> None:
+    db = CutoutsDb(cfg["database"]["path"])
+    conn = db.connect()
+    counts = db.refresh_developed_images(conn)
+    print(f"developed_images rebuilt: {counts['total']} developed JPGs, "
+          f"{counts['pending']} without cutouts, {counts['zero_byte']} zero-byte files.")
 
 def cmd_run(cfg: dict, args: argparse.Namespace) -> None:
     device = _resolve_device(args.device or cfg["device"])
@@ -160,7 +168,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--plant-type",
         help="Restrict to a single file_status.plant_type, e.g. WEEDS, CASHCROPS, or COVERCROPS",
     )
-
+    subparsers.add_parser(
+        "refresh-developed-images",
+        help="Rebuild the developed_images table (one row per developed JPG on NFS)",
+    )
     return parser
 
 

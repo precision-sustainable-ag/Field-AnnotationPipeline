@@ -131,7 +131,7 @@ The path pattern that scan follows, for reference and for validating rows:
 
 The table is rebuilt in full inside one transaction, so readers always see
 either the old contents or the new ones, never a half-written table.
-`:field_batches_root` is the LTS root from config, so stored paths are
+`jpg_path` keeps only the part after `/field-batches/`, so stored paths are
 relative.
 
 ```sql
@@ -149,7 +149,7 @@ INSERT INTO developed_images (
 SELECT
     fs.base_name, fs.master_ref_id, fs.batch_id, fl.batch_label, fs.location_code, fs.sub_batch_index,
     i.id, i.blob_name, i.image_url, i.exif_datetime,
-    substr(fl.path, length(:field_batches_root) + 1), fl.size_bytes, fl.mtime_utc,
+    substr(fl.path, instr(fl.path, '/field-batches/') + 15), fl.size_bytes, fl.mtime_utc,
     fs.plant_type, fs.species, fs.height, fs.size_class, fs.growth_stage, fs.cotton_variety,
     fs.crop_or_fallow, fs.crop_type_secondary, fs.cover_crop_family, fs.flower_fruit_or_seeds,
     fs.cloud_cover, fs.ground_residue, fs.ground_cover,
