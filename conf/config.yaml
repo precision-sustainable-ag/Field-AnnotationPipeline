@@ -12,7 +12,8 @@ save_to_lts: true
 plant_type_filter: WEEDS
 
 # Shared by detection (YOLO) and segmentation (SMP) -- overridden by --device;
-# falls back to cpu if cuda is unavailable.
+# falls back to cpu if cuda is unavailable. "cuda" (no index) auto-picks the
+# least-busy GPU at run time; use "cuda:N" to pin a specific device.
 device: cuda
 
 paths:
@@ -51,7 +52,7 @@ segmentation:
   tile:
     max_untiled_side: 3000 # crops larger than this on either side get tiled
     tile_size: 1024
-    overlap: 256
+    overlap: 512
     blend_method: hann # hann | gaussian | max
   clean_disconnected_mask:
     enable: true

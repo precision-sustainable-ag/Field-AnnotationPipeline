@@ -16,9 +16,10 @@ class WeedDetector:
         self.model = YOLO(str(yolo_model_path))
         self.conf_threshold = conf_threshold
         self.device = device
+        self.imgsz = 1024
 
     def detect(self, image_path: Path) -> Optional[dict]:
-        results = self.model(str(image_path), conf=self.conf_threshold, device=self.device, verbose=False)
+        results = self.model(str(image_path), conf=self.conf_threshold, device=self.device, verbose=False, imgsz=self.imgsz, rect=False)
         if not results or not results[0].boxes.xyxy.tolist():
             return None
 
